@@ -4,7 +4,6 @@ import {
   Typography,
   Box,
   Card,
-  CardContent,
   Table,
   TableBody,
   TableCell,
@@ -22,9 +21,7 @@ import {
   TextField,
   FormControlLabel,
   Grid,
-  CircularProgress,
-  Chip,
-  MenuItem
+  CircularProgress
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -42,9 +39,7 @@ const initialFormState = {
   resp: '',
   req: '',
   nice: '',
-  isVisible: true,
-  isFeatured: false,
-  orderIndex: 0
+  isVisible: true
 };
 
 const JobsManager = () => {
@@ -53,8 +48,6 @@ const JobsManager = () => {
   const [openForm, setOpenForm] = useState(false);
   const [formData, setFormData] = useState(initialFormState);
   const [editingId, setEditingId] = useState(null);
-
-  // Delete modal state
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
 
@@ -76,14 +69,12 @@ const JobsManager = () => {
       loc: job.loc || '',
       type: job.type || '',
       exp: job.exp || '',
-      tags: job.tags ? job.tags.join(', ') : '',
+      tags: '',
       desc: job.desc || '',
       resp: job.resp ? job.resp.join('\n') : '',
       req: job.req ? job.req.join('\n') : '',
-      nice: job.nice ? job.nice.join('\n') : '',
-      isVisible: job.isVisible,
-      isFeatured: job.isFeatured || false,
-      orderIndex: job.orderIndex || 0
+      nice: '',
+      isVisible: job.isVisible
     });
     setOpenForm(true);
   };
@@ -92,13 +83,12 @@ const JobsManager = () => {
     e.preventDefault();
     if (!formData.title.trim()) return;
 
-    // Parse array inputs
     const formattedData = {
       ...formData,
-      tags: formData.tags ? formData.tags.split(',').map(t => t.trim()).filter(t => !!t) : [],
-      resp: formData.resp ? formData.resp.split('\n').map(r => r.trim()).filter(r => !!r) : [],
-      req: formData.req ? formData.req.split('\n').map(r => r.trim()).filter(r => !!r) : [],
-      nice: formData.nice ? formData.nice.split('\n').map(r => r.trim()).filter(r => !!r) : []
+      tags: [],
+      nice: [],
+      resp: formData.resp ? formData.resp.split('\n').map((r) => r.trim()).filter(Boolean) : [],
+      req: formData.req ? formData.req.split('\n').map((r) => r.trim()).filter(Boolean) : []
     };
 
     if (editingId) {
@@ -148,10 +138,10 @@ const JobsManager = () => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" sx={{ fontFamily: '"Outfit", sans-serif', fontWeight: 800 }}>
-            Careers & Jobs Listings
+            Job Postings
           </Typography>
           <Typography variant="body1" sx={{ color: '#64748b' }}>
-            Manage active job positions, descriptions, requirements, and views.
+            Manage simple career-page postings and visibility.
           </Typography>
         </Box>
         <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpenCreate}>
@@ -168,8 +158,6 @@ const JobsManager = () => {
                 <TableCell>Department</TableCell>
                 <TableCell>Location</TableCell>
                 <TableCell>Type</TableCell>
-                <TableCell>Views / Apps</TableCell>
-                <TableCell align="center">Featured</TableCell>
                 <TableCell align="center">Visible</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -181,19 +169,6 @@ const JobsManager = () => {
                   <TableCell>{job.dept}</TableCell>
                   <TableCell>{job.loc}</TableCell>
                   <TableCell>{job.type}</TableCell>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      👁️ {job.viewCount} / 📥 {job.applicationCount}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="center">
-                    <Chip
-                      label={job.isFeatured ? 'YES' : 'NO'}
-                      size="small"
-                      color={job.isFeatured ? 'secondary' : 'default'}
-                      sx={{ fontWeight: 'bold', fontSize: 10 }}
-                    />
-                  </TableCell>
                   <TableCell align="center">
                     <Switch
                       checked={job.isVisible}
@@ -215,7 +190,7 @@ const JobsManager = () => {
               ))}
               {jobs.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 6, color: '#475569' }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6, color: '#475569' }}>
                     No job postings found. Click 'Create Job Posting' to add your first job.
                   </TableCell>
                 </TableRow>
@@ -225,7 +200,6 @@ const JobsManager = () => {
         </TableContainer>
       </Card>
 
-      {/* Form Dialog */}
       <Dialog
         open={openForm}
         onClose={() => setOpenForm(false)}
@@ -241,7 +215,7 @@ const JobsManager = () => {
         <form onSubmit={handleSave}>
           <DialogContent dividers sx={{ borderColor: '#1e293b' }}>
             <Grid container spacing={3}>
-              <Grid item xs={12} sm={8}>
+              <Grid item xs={12}>
                 <TextField
                   label="Job Title"
                   required
@@ -250,36 +224,19 @@ const JobsManager = () => {
                   fullWidth
                 />
               </Grid>
-              <Grid item xs={12} sm={4}>
-                <TextField
-                  label="Sorting Order Index"
-                  type="number"
-                  value={formData.orderIndex}
-                  onChange={(e) => setFormData({ ...formData, orderIndex: parseInt(e.target.value) || 0 })}
-                  fullWidth
-                />
-              </Grid>
 
               <Grid item xs={12} sm={4}>
                 <TextField
-                  select
                   label="Department"
                   value={formData.dept}
                   onChange={(e) => setFormData({ ...formData, dept: e.target.value })}
                   fullWidth
-                >
-                  <MenuItem value="Engineering">Engineering</MenuItem>
-                  <MenuItem value="Design">Design</MenuItem>
-                  <MenuItem value="Product">Product</MenuItem>
-                  <MenuItem value="Infrastructure">Infrastructure</MenuItem>
-                  <MenuItem value="Sales & Marketing">Sales & Marketing</MenuItem>
-                  <MenuItem value="Operations">Operations</MenuItem>
-                </TextField>
+                />
               </Grid>
               <Grid item xs={12} sm={4}>
                 <TextField
                   label="Location"
-                  placeholder="e.g. Remote (US) / New York, NY"
+                  placeholder="e.g. Hyderabad / Remote"
                   value={formData.loc}
                   onChange={(e) => setFormData({ ...formData, loc: e.target.value })}
                   fullWidth
@@ -288,35 +245,16 @@ const JobsManager = () => {
               <Grid item xs={12} sm={4}>
                 <TextField
                   label="Employment Type"
-                  placeholder="e.g. Full-time, Contract, Part-time"
+                  placeholder="e.g. Full-time"
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                   fullWidth
                 />
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  label="Experience Level Required"
-                  placeholder="e.g. 5+ years / Senior level"
-                  value={formData.exp}
-                  onChange={(e) => setFormData({ ...formData, exp: e.target.value })}
-                  fullWidth
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  label="Skills Tags (Comma-separated)"
-                  placeholder="React, Node.js, AWS, Redis"
-                  value={formData.tags}
-                  onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                  fullWidth
-                />
-              </Grid>
-
               <Grid item xs={12}>
                 <TextField
-                  label="Short Job Description"
+                  label="Job Description"
                   multiline
                   rows={3}
                   value={formData.desc}
@@ -325,41 +263,30 @@ const JobsManager = () => {
                 />
               </Grid>
 
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   label="Responsibilities (One per line)"
                   multiline
                   rows={6}
-                  placeholder="Design responsive systems&#10;Write unit tests&#10;Optimize SQL transactions"
+                  placeholder="Design responsive systems\nWrite unit tests\nOptimize SQL transactions"
                   value={formData.resp}
                   onChange={(e) => setFormData({ ...formData, resp: e.target.value })}
                   fullWidth
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid item xs={12} md={6}>
                 <TextField
                   label="Requirements (One per line)"
                   multiline
                   rows={6}
-                  placeholder="5+ years in full stack web dev&#10;Proficiency in MongoDB&#10;Strong communication skills"
+                  placeholder="5+ years in full stack web dev\nProficiency in MongoDB\nStrong communication skills"
                   value={formData.req}
                   onChange={(e) => setFormData({ ...formData, req: e.target.value })}
                   fullWidth
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
-                <TextField
-                  label="Nice to Have (One per line)"
-                  multiline
-                  rows={6}
-                  placeholder="Experience with Docker/CI-CD&#10;AWS certified architect certificate"
-                  value={formData.nice}
-                  onChange={(e) => setFormData({ ...formData, nice: e.target.value })}
-                  fullWidth
-                />
-              </Grid>
 
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12}>
                 <FormControlLabel
                   control={
                     <Switch
@@ -371,21 +298,9 @@ const JobsManager = () => {
                   label="Visible to Public"
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={formData.isFeatured}
-                      onChange={(e) => setFormData({ ...formData, isFeatured: e.target.checked })}
-                      color="secondary"
-                    />
-                  }
-                  label="Featured Listing"
-                />
-              </Grid>
             </Grid>
           </DialogContent>
-          
+
           <DialogActions sx={{ p: 3 }}>
             <Button onClick={() => setOpenForm(false)} sx={{ color: '#94a3b8' }}>
               Cancel
@@ -397,7 +312,6 @@ const JobsManager = () => {
         </form>
       </Dialog>
 
-      {/* Delete Confirmation Modal */}
       <ConfirmModal
         open={deleteOpen}
         title="Delete Job Posting?"

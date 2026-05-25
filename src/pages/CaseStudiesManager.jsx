@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCMS } from '../context/CMSContext.jsx';
 import {
   Typography,
@@ -25,7 +26,12 @@ import {
   CircularProgress,
   Chip,
   Tabs,
-  Tab
+  Tab,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  Alert
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -66,7 +72,8 @@ const initialFormState = {
   sidebarDuration: '',
   sidebarScope: '',
   sidebarRelatedWhitePaper: '',
-  related: '',
+  sidebarRelatedWhitePaperSlug: '',
+  related: [],
   isVisible: true,
   isFeatured: false,
   seo: {
@@ -82,7 +89,13 @@ const initialFormState = {
 };
 
 const CaseStudiesManager = () => {
-  const { caseStudies, fetchCaseStudies, saveCaseStudy, deleteCaseStudy, toggleCaseStudyVisibility, loading } = useCMS();
+  const navigate = useNavigate();
+  const {
+    caseStudies, fetchCaseStudies, saveCaseStudy, deleteCaseStudy, toggleCaseStudyVisibility,
+    whitePapers, fetchWhitePapers,
+    industries, fetchIndustries,
+    loading
+  } = useCMS();
 
   const [openForm, setOpenForm] = useState(false);
   const [formData, setFormData] = useState(initialFormState);
@@ -95,7 +108,13 @@ const CaseStudiesManager = () => {
 
   useEffect(() => {
     fetchCaseStudies();
+    fetchWhitePapers();
+    fetchIndustries();
   }, []);
+
+  const selectedIndustry = industries.find((industry) => industry.slug === formData.industry);
+  const selectedWhitePaper = whitePapers.find((paper) => paper.slug === formData.sidebarRelatedWhitePaperSlug);
+  const otherCaseStudies = caseStudies.filter((study) => study._id !== editingId);
 
   const handleOpenCreate = () => {
     setFormData(initialFormState);
@@ -142,7 +161,8 @@ const CaseStudiesManager = () => {
       sidebarDuration: cs.sidebar?.duration || '',
       sidebarScope: cs.sidebar?.scope || '',
       sidebarRelatedWhitePaper: cs.sidebar?.relatedWhitePaper || '',
-      related: cs.related ? cs.related.join(', ') : '',
+      sidebarRelatedWhitePaperSlug: cs.sidebar?.relatedWhitePaperSlug || '',
+      related: cs.related || [],
       isVisible: cs.isVisible,
       isFeatured: cs.isFeatured || false,
       seo: cs.seo || initialFormState.seo
@@ -153,7 +173,7 @@ const CaseStudiesManager = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.id.trim() || !formData.slug.trim()) return;
+    if (!formData.title.trim() || !formData.id.trim() || !formData.slug.trim() || !formData.industry) return;
 
     // Parse stats
     const statsList = formData.stats
@@ -169,8 +189,8 @@ const CaseStudiesManager = () => {
       slug: formData.slug.trim(),
       title: formData.title.trim(),
       date: formData.date.trim(),
-      industry: formData.industry.trim(),
-      industryTag: formData.industryTag.trim(),
+      industry: formData.industry,
+      industryTag: formData.industryTag.trim() || selectedIndustry?.hero?.title || selectedIndustry?.title || selectedIndustry?.name || '',
       excerpt: formData.excerpt.trim(),
       filters: formData.filters ? formData.filters.split(',').map(f => f.trim()).filter(f => !!f) : [],
       image: {
@@ -206,9 +226,10 @@ const CaseStudiesManager = () => {
         engagementType: formData.sidebarEngagementType.trim(),
         duration: formData.sidebarDuration.trim(),
         scope: formData.sidebarScope.trim(),
-        relatedWhitePaper: formData.sidebarRelatedWhitePaper.trim()
+        relatedWhitePaper: selectedWhitePaper?.title || formData.sidebarRelatedWhitePaper.trim(),
+        relatedWhitePaperSlug: formData.sidebarRelatedWhitePaperSlug
       },
-      related: formData.related ? formData.related.split(',').map(r => r.trim()).filter(r => !!r) : [],
+      related: formData.related,
       isVisible: formData.isVisible,
       isFeatured: formData.isFeatured,
       seo: formData.seo
@@ -394,13 +415,43 @@ const CaseStudiesManager = () => {
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Sector Industry slug (Matches Industry)"
-                    placeholder="e.g. retail-consumer / healthcare-tech"
-                    value={formData.industry}
-                    onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-                    fullWidth
-                  />
+                  <FormControl fullWidth required>
+                    <InputLabel>Industry</InputLabel>
+                    <Select
+                      label="Industry"
+                      value={formData.industry}
+                      onChange={(e) => {
+                        const industry = industries.find((item) => item.slug === e.target.value);
+                        const industryName = industry?.hero?.title || industry?.title || industry?.name || '';
+                        setFormData({
+                          ...formData,
+                          industry: e.target.value,
+                          industryTag: formData.industryTag || industryName,
+                          sidebarIndustry: formData.sidebarIndustry || industryName,
+                          heroDetailIndustry: formData.heroDetailIndustry || industryName
+                        });
+                      }}
+                    >
+                      {industries.map((industry) => (
+                        <MenuItem key={industry._id || industry.slug} value={industry.slug}>
+                          {industry.hero?.title || industry.title || industry.name || industry.slug}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  {industries.length === 0 && (
+                    <Alert
+                      severity="warning"
+                      sx={{ mt: 2 }}
+                      action={
+                        <Button size="small" variant="contained" onClick={() => navigate('/industries')}>
+                          Create Industry
+                        </Button>
+                      }
+                    >
+                      Create an industry first before adding case studies.
+                    </Alert>
+                  )}
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <TextField
@@ -655,22 +706,56 @@ const CaseStudiesManager = () => {
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Related White Paper ID (if any)"
-                    placeholder="e.g. high-scale-databases"
-                    value={formData.sidebarRelatedWhitePaper}
-                    onChange={(e) => setFormData({ ...formData, sidebarRelatedWhitePaper: e.target.value })}
-                    fullWidth
-                  />
+                  <FormControl fullWidth>
+                    <InputLabel>Related White Paper</InputLabel>
+                    <Select
+                      label="Related White Paper"
+                      value={formData.sidebarRelatedWhitePaperSlug}
+                      onChange={(e) => setFormData({ ...formData, sidebarRelatedWhitePaperSlug: e.target.value })}
+                    >
+                      <MenuItem value="">None</MenuItem>
+                      {whitePapers.map((paper) => (
+                        <MenuItem key={paper._id || paper.slug} value={paper.slug}>
+                          {paper.title}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  {whitePapers.length === 0 && (
+                    <Alert
+                      severity="info"
+                      sx={{ mt: 2 }}
+                      action={
+                        <Button size="small" variant="contained" onClick={() => navigate('/white-papers')}>
+                          Create White Paper
+                        </Button>
+                      }
+                    >
+                      Create a white paper first to link it here.
+                    </Alert>
+                  )}
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Related Case Study IDs (Comma-separated)"
-                    placeholder="fintech-security-hardening"
-                    value={formData.related}
-                    onChange={(e) => setFormData({ ...formData, related: e.target.value })}
-                    fullWidth
-                  />
+                  <FormControl fullWidth>
+                    <InputLabel>Related Case Studies</InputLabel>
+                    <Select
+                      multiple
+                      label="Related Case Studies"
+                      value={formData.related}
+                      onChange={(e) => setFormData({ ...formData, related: e.target.value })}
+                    >
+                      {otherCaseStudies.map((study) => (
+                        <MenuItem key={study._id || study.slug} value={study.slug}>
+                          {study.title}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  {otherCaseStudies.length === 0 && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      Add another case study before linking related work.
+                    </Alert>
+                  )}
                 </Grid>
               </Grid>
             )}

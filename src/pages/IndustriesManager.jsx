@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCMS } from '../context/CMSContext.jsx';
 import {
   Typography,
@@ -26,7 +27,11 @@ import {
   Chip,
   Tabs,
   Tab,
-  Divider
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  Alert
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -46,8 +51,8 @@ const initialFormState = {
   focusTitle: 'Focus Areas',
   focusDescription: '',
   focusPillars: '', // text-format: "Title : Description" per line
-  caseStudiesRaw: '', // text-format: "Title : Result : Date : ImageUrl" per line
-  whitePapersRaw: '', // text-format: "Topic : Title : PaperID" per line
+  caseStudies: [],
+  whitePapers: [],
   ctaEyebrow: '',
   ctaTitle: '',
   ctaDescription: '',
@@ -68,7 +73,13 @@ const initialFormState = {
 };
 
 const IndustriesManager = () => {
-  const { industries, fetchIndustries, saveIndustry, deleteIndustry, toggleIndustryVisibility, loading } = useCMS();
+  const navigate = useNavigate();
+  const {
+    industries, fetchIndustries, saveIndustry, deleteIndustry, toggleIndustryVisibility,
+    caseStudies, fetchCaseStudies,
+    whitePapers, fetchWhitePapers,
+    loading
+  } = useCMS();
 
   const [openForm, setOpenForm] = useState(false);
   const [formData, setFormData] = useState(initialFormState);
@@ -82,6 +93,8 @@ const IndustriesManager = () => {
 
   useEffect(() => {
     fetchIndustries();
+    fetchCaseStudies();
+    fetchWhitePapers();
   }, []);
 
   const handleOpenCreate = () => {
@@ -99,16 +112,6 @@ const IndustriesManager = () => {
       ? ind.focus.pillars.map(p => `${p.title} : ${p.description}`).join('\n')
       : '';
 
-    // Format CaseStudies association array back to text
-    const csText = ind.caseStudies
-      ? ind.caseStudies.map(cs => `${cs.title} : ${cs.result} : ${cs.date} : ${cs.image}`).join('\n')
-      : '';
-
-    // Format WhitePapers association array back to text
-    const wpText = ind.whitePapers
-      ? ind.whitePapers.map(wp => `${wp.topic} : ${wp.title} : ${wp.id}`).join('\n')
-      : '';
-
     setFormData({
       slug: ind.slug || '',
       breadcrumbParent: ind.breadcrumb?.parent || 'Industries',
@@ -120,8 +123,8 @@ const IndustriesManager = () => {
       focusTitle: ind.focus?.title || 'Focus Areas',
       focusDescription: ind.focus?.description || '',
       focusPillars: pillarsText,
-      caseStudiesRaw: csText,
-      whitePapersRaw: wpText,
+      caseStudies: (ind.caseStudies || []).map(cs => cs.slug).filter(Boolean),
+      whitePapers: (ind.whitePapers || []).map(wp => wp.slug).filter(Boolean),
       ctaEyebrow: ind.cta?.eyebrow || '',
       ctaTitle: ind.cta?.title || '',
       ctaDescription: ind.cta?.description || '',
@@ -147,31 +150,31 @@ const IndustriesManager = () => {
         }).filter(p => !!p.title)
       : [];
 
-    // Parse case studies: "Title : Result : Date : ImageUrl"
-    const csList = formData.caseStudiesRaw
-      ? formData.caseStudiesRaw.split('\n').map(line => {
-          const parts = line.split(':');
-          return {
-            title: parts[0]?.trim() || '',
-            result: parts[1]?.trim() || '',
-            date: parts[2]?.trim() || '',
-            image: parts[3]?.trim() || '',
-            industryTag: formData.breadcrumbCurrent || ''
-          };
-        }).filter(cs => !!cs.title)
-      : [];
+    const csList = formData.caseStudies
+      .map((slug) => caseStudies.find((study) => study.slug === slug))
+      .filter(Boolean)
+      .map((study) => ({
+        caseStudyId: study._id,
+        slug: study.slug,
+        title: study.title,
+        result: study.excerpt || '',
+        date: study.date || '',
+        image: study.image?.url || '',
+        industryTag: study.industryTag || formData.breadcrumbCurrent || '',
+        isVisible: study.isVisible !== false
+      }));
 
-    // Parse white papers: "Topic : Title : PaperID"
-    const wpList = formData.whitePapersRaw
-      ? formData.whitePapersRaw.split('\n').map(line => {
-          const parts = line.split(':');
-          return {
-            topic: parts[0]?.trim() || '',
-            title: parts[1]?.trim() || '',
-            id: parts[2]?.trim() || ''
-          };
-        }).filter(wp => !!wp.title)
-      : [];
+    const wpList = formData.whitePapers
+      .map((slug) => whitePapers.find((paper) => paper.slug === slug))
+      .filter(Boolean)
+      .map((paper) => ({
+        whitePaperId: paper._id,
+        slug: paper.slug,
+        topic: paper.topic || '',
+        title: paper.title,
+        id: paper.id || '',
+        isVisible: paper.isVisible !== false
+      }));
 
     const payload = {
       slug: formData.slug.trim().toLowerCase(),
@@ -273,7 +276,7 @@ const IndustriesManager = () => {
                 <TableCell>Slug</TableCell>
                 <TableCell>Linked Content</TableCell>
                 <TableCell align="center">Order Index</TableCell>
-                <TableCell align="center">Status</TableCell>
+                {/* <TableCell align="center">Status</TableCell> */}
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -291,13 +294,13 @@ const IndustriesManager = () => {
                     <strong>{ind.whitePapers?.length || 0}</strong>
                   </TableCell>
                   <TableCell align="center">{ind.orderIndex}</TableCell>
-                  <TableCell align="center">
+                  {/* <TableCell align="center">
                     <Switch
                       checked={ind.isVisible}
                       onChange={() => handleToggleVisibility(ind._id)}
                       color="primary"
                     />
-                  </TableCell>
+                  </TableCell> */}
                   <TableCell align="right">
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
                       <IconButton color="primary" onClick={() => handleOpenEdit(ind)}>
@@ -312,8 +315,13 @@ const IndustriesManager = () => {
               ))}
               {industries.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 6, color: '#475569' }}>
-                    No sectors found. Click 'Create Sector' to begin.
+                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                    <Typography sx={{ color: '#94a3b8', mb: 2 }}>
+                      No industries created yet.
+                    </Typography>
+                    <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpenCreate}>
+                      Create Your First Industry
+                    </Button>
                   </TableCell>
                 </TableRow>
               )}
@@ -420,7 +428,7 @@ const IndustriesManager = () => {
                     fullWidth
                   />
                 </Grid>
-                <Grid item xs={12}>
+                {/* <Grid item xs={12}>
                   <FormControlLabel
                     control={
                       <Switch
@@ -431,7 +439,7 @@ const IndustriesManager = () => {
                     }
                     label="Visible to Public"
                   />
-                </Grid>
+                </Grid> */}
               </Grid>
             )}
 
@@ -473,31 +481,70 @@ const IndustriesManager = () => {
               <Grid container spacing={3} sx={{ mt: 0.5 }}>
                 <Grid item xs={12}>
                   <Typography variant="subtitle2" color="primary" gutterBottom fontWeight="bold">
-                    LINKED CASE STUDIES (Format: Title : Result : Date : ImageUrl, one per line)
+                    Linked Case Studies
                   </Typography>
-                  <TextField
-                    multiline
-                    rows={5}
-                    placeholder="Scaling Retail Insights : 22% Sales Boost : March 2025 : https://example.com/image.jpg"
-                    value={formData.caseStudiesRaw}
-                    onChange={(e) => setFormData({ ...formData, caseStudiesRaw: e.target.value })}
-                    fullWidth
-                  />
+                  <FormControl fullWidth>
+                    <InputLabel>Case Studies</InputLabel>
+                    <Select
+                      multiple
+                      label="Case Studies"
+                      value={formData.caseStudies}
+                      onChange={(e) => setFormData({ ...formData, caseStudies: e.target.value })}
+                    >
+                      {caseStudies.map((study) => (
+                        <MenuItem key={study._id || study.slug} value={study.slug}>
+                          {study.title} ({study.industry || 'No industry'})
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  {caseStudies.length === 0 && (
+                    <Alert
+                      severity="info"
+                      sx={{ mt: 2 }}
+                      action={
+                        <Button size="small" variant="contained" onClick={() => navigate('/case-studies')}>
+                          Create Case Study
+                        </Button>
+                      }
+                    >
+                      Create a case study first to link it to this industry.
+                    </Alert>
+                  )}
                 </Grid>
                 
                 <Grid item xs={12}>
-                  <Divider sx={{ my: 1, borderColor: '#1e293b' }} />
                   <Typography variant="subtitle2" color="primary" gutterBottom fontWeight="bold" sx={{ mt: 1 }}>
-                    LINKED WHITE PAPERS (Format: Topic : Title : PaperID, one per line)
+                    Linked White Papers
                   </Typography>
-                  <TextField
-                    multiline
-                    rows={5}
-                    placeholder="Database Engineering : Black Friday DB scaling secret blueprint : high-scale-databases"
-                    value={formData.whitePapersRaw}
-                    onChange={(e) => setFormData({ ...formData, whitePapersRaw: e.target.value })}
-                    fullWidth
-                  />
+                  <FormControl fullWidth>
+                    <InputLabel>White Papers</InputLabel>
+                    <Select
+                      multiple
+                      label="White Papers"
+                      value={formData.whitePapers}
+                      onChange={(e) => setFormData({ ...formData, whitePapers: e.target.value })}
+                    >
+                      {whitePapers.map((paper) => (
+                        <MenuItem key={paper._id || paper.slug} value={paper.slug}>
+                          {paper.title} ({paper.topic || 'No topic'})
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  {whitePapers.length === 0 && (
+                    <Alert
+                      severity="info"
+                      sx={{ mt: 2 }}
+                      action={
+                        <Button size="small" variant="contained" onClick={() => navigate('/white-papers')}>
+                          Create White Paper
+                        </Button>
+                      }
+                    >
+                      Create a white paper first to link it to this industry.
+                    </Alert>
+                  )}
                 </Grid>
               </Grid>
             )}

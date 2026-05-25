@@ -224,28 +224,6 @@ export const CMSProvider = ({ children }) => {
     }
   };
 
-  const updateContactStatus = async (id, status, notes) => {
-    try {
-      const res = await api.patch(`/api/cms/contacts/${id}/status`, { status, notes });
-      setContacts(prev => prev.map(c => c._id === id ? { ...c, status: res.data.status, notes: res.data.notes } : c));
-      return res.data;
-    } catch (err) {
-      console.error('Error updating contact status:', err);
-      throw err;
-    }
-  };
-
-  const replyToContact = async (id, replyMessage) => {
-    try {
-      const res = await api.post(`/api/cms/contacts/${id}/reply`, { replyMessage });
-      setContacts(prev => prev.map(c => c._id === id ? res.data.contact : c));
-      return res.data;
-    } catch (err) {
-      console.error('Error replying to contact:', err);
-      throw err;
-    }
-  };
-
   const deleteContact = async (id) => {
     try {
       await api.delete(`/api/cms/contacts/${id}`);
@@ -463,7 +441,7 @@ export const CMSProvider = ({ children }) => {
       techStack, fetchTechStack, saveTechStack, toggleTechStackVisibility, saveTechStackSEO,
       jobs, fetchJobs, saveJob, deleteJob, toggleJobVisibility,
       applications, fetchApplications, updateApplicationStatus, deleteApplication,
-      contacts, fetchContacts, updateContactStatus, replyToContact, deleteContact,
+      contacts, fetchContacts, deleteContact,
       caseStudies, fetchCaseStudies, saveCaseStudy, deleteCaseStudy, toggleCaseStudyVisibility,
       whitePapers, fetchWhitePapers, saveWhitePaper, deleteWhitePaper, toggleWhitePaperVisibility,
       industries, fetchIndustries, saveIndustry, deleteIndustry, toggleIndustryVisibility,

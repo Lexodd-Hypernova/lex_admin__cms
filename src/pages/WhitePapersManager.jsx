@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCMS } from '../context/CMSContext.jsx';
 import {
   Typography,
@@ -25,7 +26,12 @@ import {
   CircularProgress,
   Chip,
   Tabs,
-  Tab
+  Tab,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  Alert
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -61,6 +67,8 @@ const initialFormState = {
   sidebarPages: '',
   sidebarPublished: '',
   sidebarLicense: '',
+  sidebarRelatedCaseStudySlug: '',
+  sidebarAlsoInSeries: [],
   isVisible: true,
   seo: {
     metaTitle: '',
@@ -75,7 +83,12 @@ const initialFormState = {
 };
 
 const WhitePapersManager = () => {
-  const { whitePapers, fetchWhitePapers, saveWhitePaper, deleteWhitePaper, toggleWhitePaperVisibility, loading } = useCMS();
+  const navigate = useNavigate();
+  const {
+    whitePapers, fetchWhitePapers, saveWhitePaper, deleteWhitePaper, toggleWhitePaperVisibility,
+    caseStudies, fetchCaseStudies,
+    loading
+  } = useCMS();
 
   const [openForm, setOpenForm] = useState(false);
   const [formData, setFormData] = useState(initialFormState);
@@ -88,7 +101,11 @@ const WhitePapersManager = () => {
 
   useEffect(() => {
     fetchWhitePapers();
+    fetchCaseStudies();
   }, []);
+
+  const selectedCaseStudy = caseStudies.find((study) => study.slug === formData.sidebarRelatedCaseStudySlug);
+  const otherWhitePapers = whitePapers.filter((paper) => paper._id !== editingId);
 
   const handleOpenCreate = () => {
     setFormData(initialFormState);
@@ -126,6 +143,8 @@ const WhitePapersManager = () => {
       sidebarPages: wp.sidebar?.pages || '',
       sidebarPublished: wp.sidebar?.published || '',
       sidebarLicense: wp.sidebar?.license || '',
+      sidebarRelatedCaseStudySlug: wp.sidebar?.relatedCaseStudySlug || '',
+      sidebarAlsoInSeries: Array.isArray(wp.sidebar?.alsoInSeries) ? wp.sidebar.alsoInSeries : [],
       isVisible: wp.isVisible,
       seo: wp.seo || initialFormState.seo
     });
@@ -174,7 +193,10 @@ const WhitePapersManager = () => {
         author: formData.sidebarAuthor.trim(),
         pages: formData.sidebarPages.trim(),
         published: formData.sidebarPublished.trim() || formData.date.trim(),
-        license: formData.sidebarLicense.trim()
+        license: formData.sidebarLicense.trim(),
+        relatedCaseStudy: selectedCaseStudy?.title || '',
+        relatedCaseStudySlug: formData.sidebarRelatedCaseStudySlug,
+        alsoInSeries: formData.sidebarAlsoInSeries
       },
       isVisible: formData.isVisible,
       seo: formData.seo
@@ -584,6 +606,58 @@ const WhitePapersManager = () => {
                     onChange={(e) => setFormData({ ...formData, sidebarLicense: e.target.value })}
                     fullWidth
                   />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Related Case Study</InputLabel>
+                    <Select
+                      label="Related Case Study"
+                      value={formData.sidebarRelatedCaseStudySlug}
+                      onChange={(e) => setFormData({ ...formData, sidebarRelatedCaseStudySlug: e.target.value })}
+                    >
+                      <MenuItem value="">None</MenuItem>
+                      {caseStudies.map((study) => (
+                        <MenuItem key={study._id || study.slug} value={study.slug}>
+                          {study.title}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  {caseStudies.length === 0 && (
+                    <Alert
+                      severity="info"
+                      sx={{ mt: 2 }}
+                      action={
+                        <Button size="small" variant="contained" onClick={() => navigate('/case-studies')}>
+                          Create Case Study
+                        </Button>
+                      }
+                    >
+                      Create a case study first to link it here.
+                    </Alert>
+                  )}
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Also in this series</InputLabel>
+                    <Select
+                      multiple
+                      label="Also in this series"
+                      value={formData.sidebarAlsoInSeries}
+                      onChange={(e) => setFormData({ ...formData, sidebarAlsoInSeries: e.target.value })}
+                    >
+                      {otherWhitePapers.map((paper) => (
+                        <MenuItem key={paper._id || paper.slug} value={paper.title}>
+                          {paper.title}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  {otherWhitePapers.length === 0 && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      Add another white paper before linking a series.
+                    </Alert>
+                  )}
                 </Grid>
               </Grid>
             )}

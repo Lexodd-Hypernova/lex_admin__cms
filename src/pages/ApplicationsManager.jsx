@@ -24,7 +24,6 @@ import {
   CircularProgress,
   Divider,
   Grid,
-  Link
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -32,15 +31,6 @@ import DownloadIcon from '@mui/icons-material/Download';
 import LinkIcon from '@mui/icons-material/Link';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 import api from '../utils/api.js';
-
-const getBackendUrl = () => {
-  if (typeof window !== 'undefined') {
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return 'http://localhost:5000';
-    }
-  }
-  return '';
-};
 
 const ApplicationsManager = () => {
   const {
@@ -103,10 +93,22 @@ const ApplicationsManager = () => {
     }
   };
 
-  const getFullCvUrl = (relativeUrl) => {
-    if (!relativeUrl) return '';
-    if (relativeUrl.startsWith('http')) return relativeUrl;
-    return `${getBackendUrl()}${relativeUrl}`;
+  const handleDownloadCV = async (applicationId, filename) => {
+    try {
+      const response = await api.get(`/api/cms/applications/${applicationId}/download-cv`, {
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename || 'resume.pdf');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert('Failed to download CV.');
+    }
   };
 
   const filteredApps = applications.filter(app => {
@@ -163,6 +165,7 @@ const ApplicationsManager = () => {
                 <TableCell>Experience</TableCell>
                 <TableCell>Submitted On</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell>CV</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -181,7 +184,7 @@ const ApplicationsManager = () => {
                       {app.jobId ? app.jobId.dept : '-'}
                     </Typography>
                   </TableCell>
-                  <TableCell>{app.yearsExperience} Years</TableCell>
+                  <TableCell>{app.yearsExperience || '-'}</TableCell>
                   <TableCell>{new Date(app.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell>
                     <Chip
@@ -194,6 +197,20 @@ const ApplicationsManager = () => {
                       }
                       sx={{ fontWeight: 'bold', fontSize: 11 }}
                     />
+                  </TableCell>
+                  <TableCell>
+                    {app.cvUrl ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        onClick={() => handleDownloadCV(app._id, app.cvFilename)}
+                      >
+                        Download
+                      </Button>
+                    ) : (
+                      '-'
+                    )}
                   </TableCell>
                   <TableCell align="right">
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
@@ -209,7 +226,7 @@ const ApplicationsManager = () => {
               ))}
               {filteredApps.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 6, color: '#475569' }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 6, color: '#475569' }}>
                     No job applications found matching filter criteria.
                   </TableCell>
                 </TableRow>
@@ -246,7 +263,7 @@ const ApplicationsManager = () => {
                   <Typography variant="body2"><strong>Email:</strong> {selectedApp.email}</Typography>
                   <Typography variant="body2"><strong>Phone:</strong> {selectedApp.phone || '-'}</Typography>
                   <Typography variant="body2"><strong>Location:</strong> {selectedApp.currentLocation || '-'}</Typography>
-                  <Typography variant="body2"><strong>Years of Experience:</strong> {selectedApp.yearsExperience} Years</Typography>
+                  <Typography variant="body2"><strong>Experience:</strong> {selectedApp.yearsExperience || '-'}</Typography>
                   <Typography variant="body2"><strong>Notice Period:</strong> {selectedApp.noticePeriod || '-'}</Typography>
                   <Typography variant="body2"><strong>Source:</strong> {selectedApp.source || '-'}</Typography>
                   <Typography variant="body2">
@@ -263,11 +280,7 @@ const ApplicationsManager = () => {
                       variant="outlined"
                       color="secondary"
                       startIcon={<DownloadIcon />}
-                      component={Link}
-                      href={getFullCvUrl(selectedApp.cvUrl)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      sx={{ textDecoration: 'none !important' }}
+                      onClick={() => handleDownloadCV(selectedApp._id, selectedApp.cvFilename)}
                     >
                       Download Resume ({selectedApp.cvFilename || 'Resume.pdf'})
                     </Button>

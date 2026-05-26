@@ -230,7 +230,7 @@ const DashboardHome = () => {
                     >
                       <ListItem disablePadding secondaryAction={
                         <Chip
-                          label={contact.status.toUpperCase()}
+                          label={contact.status}
                           size="small"
                           color={
                             contact.status === 'new' ? 'warning' :
@@ -241,7 +241,7 @@ const DashboardHome = () => {
                       }>
                         <ListItemAvatar>
                           <Avatar sx={{ bgcolor: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
-                            {contact.name.charAt(0).toUpperCase()}
+                            {contact.name.charAt(0)}
                           </Avatar>
                         </ListItemAvatar>
                         <ListItemText
@@ -298,7 +298,7 @@ const DashboardHome = () => {
                     >
                       <ListItem disablePadding secondaryAction={
                         <Chip
-                          label={app.status.toUpperCase()}
+                          label={app.status}
                           size="small"
                           color={
                             app.status === 'pending' ? 'warning' :
@@ -310,7 +310,7 @@ const DashboardHome = () => {
                       }>
                         <ListItemAvatar>
                           <Avatar sx={{ bgcolor: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-                            {app.firstName.charAt(0).toUpperCase()}
+                            {app.firstName.charAt(0)}
                           </Avatar>
                         </ListItemAvatar>
                         <ListItemText

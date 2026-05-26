@@ -77,17 +77,18 @@ const Layout = () => {
   ];
 
   const drawerContent = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'col', bgcolor: '#0b0f19', borderRight: '1px solid #1e293b' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#0b0f19', borderRight: '1px solid #1e293b' }}>
       <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <img src="images/lexodd.svg" alt="" width={50} height={50}/>
         {/* <Avatar sx={{ bgcolor: 'primary.main', fontWeight: 'bold', fontSize: 22, width: 42, height: 42 }}>L</Avatar> */}
-        {/* <Box>
+        <Box>
           <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: '1px', fontFamily: '"Outfit", sans-serif' }}>
-            LEX <span style={{ color: '#6366f1' }}>CMS</span>
+            LEXODD <span style={{ color: '#6366f1' }}></span>
           </Typography>
           <Typography variant="caption" sx={{ color: '#475569', fontWeight: 600 }}>
-            v1.0.0 Stable
+            CMS
           </Typography>
-        </Box> */}
+        </Box>
       </Box>
       <Divider sx={{ borderColor: '#1e293b' }} />
       <List sx={{ px: 2, py: 3, flexGrow: 1 }}>
@@ -160,7 +161,7 @@ const Layout = () => {
           >
             <MenuIcon />
           </IconButton>
-          
+
           <Typography variant="h6" noWrap component="div" sx={{ fontFamily: '"Outfit", sans-serif', fontWeight: 700, color: '#94a3b8' }}>
             {menuItems.find(item => item.path === location.pathname)?.text || 'CMS Administration'}
           </Typography>
@@ -182,7 +183,7 @@ const Layout = () => {
             >
               System Online
             </Button>
-            
+
             <IconButton onClick={handleMenu} sx={{ p: 0.5, border: '1px solid #1e293b' }}>
               <Avatar src={user?.avatar} sx={{ width: 32, height: 32 }} />
             </IconButton>
@@ -230,7 +231,7 @@ const Layout = () => {
         >
           {drawerContent}
         </Drawer>
-        
+
         {/* Desktop drawer */}
         <Drawer
           variant="permanent"

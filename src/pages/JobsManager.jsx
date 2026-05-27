@@ -27,6 +27,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 import ConfirmModal from '../components/ConfirmModal.jsx';
+import getErrorMessage from '../utils/errorMessage.js';
+import { todayInputValue, toDateInputValue } from '../utils/dateFormat.js';
 
 const initialFormState = {
   title: '',
@@ -39,6 +41,7 @@ const initialFormState = {
   resp: '',
   req: '',
   nice: '',
+  postedDate: todayInputValue(),
   isVisible: true
 };
 
@@ -74,6 +77,7 @@ const JobsManager = () => {
       resp: job.resp ? job.resp.join('\n') : '',
       req: job.req ? job.req.join('\n') : '',
       nice: '',
+      postedDate: toDateInputValue(job.postedDate) || todayInputValue(),
       isVisible: job.isVisible
     });
     setOpenForm(true);
@@ -81,12 +85,26 @@ const JobsManager = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim()) return;
+    const missing = [
+      !formData.title.trim() && 'Job Title is required',
+      !formData.dept.trim() && 'Department is required',
+      !formData.loc.trim() && 'Location is required',
+      !formData.type.trim() && 'Employment Type is required',
+      !formData.postedDate && 'Posted Date is required',
+      !formData.desc.trim() && 'Job Description is required',
+      !formData.resp.trim() && 'At least one responsibility is required',
+      !formData.req.trim() && 'At least one requirement is required'
+    ].filter(Boolean);
+    if (missing.length) {
+      alert(`Complete these fields before publishing:\n\n${missing.join('\n')}`);
+      return;
+    }
 
     const formattedData = {
       ...formData,
       tags: [],
       nice: [],
+      postedDate: toDateInputValue(formData.postedDate),
       resp: formData.resp ? formData.resp.split('\n').map((r) => r.trim()).filter(Boolean) : [],
       req: formData.req ? formData.req.split('\n').map((r) => r.trim()).filter(Boolean) : []
     };
@@ -99,7 +117,7 @@ const JobsManager = () => {
       await saveJob(formattedData);
       setOpenForm(false);
     } catch (err) {
-      alert('Error saving job details');
+      alert(getErrorMessage(err, 'Error saving job details'));
     }
   };
 
@@ -113,7 +131,7 @@ const JobsManager = () => {
       await deleteJob(deleteId);
       setDeleteOpen(false);
     } catch (err) {
-      alert('Error deleting job posting.');
+      alert(getErrorMessage(err, 'Error deleting job posting.'));
     }
   };
 
@@ -121,7 +139,7 @@ const JobsManager = () => {
     try {
       await toggleJobVisibility(id);
     } catch (err) {
-      alert('Failed to update job visibility status.');
+      alert(getErrorMessage(err, 'Failed to update job visibility status.'));
     }
   };
 
@@ -248,6 +266,16 @@ const JobsManager = () => {
                   placeholder="e.g. Full-time"
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label="Posted Date"
+                  type="date"
+                  value={formData.postedDate}
+                  onChange={(e) => setFormData({ ...formData, postedDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
                   fullWidth
                 />
               </Grid>

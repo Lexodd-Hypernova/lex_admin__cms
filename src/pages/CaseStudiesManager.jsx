@@ -39,6 +39,9 @@ import AddIcon from '@mui/icons-material/Add';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 import ImageUploader from '../components/ImageUploader.jsx';
 import SEOFields from '../components/SEOFields.jsx';
+import { getWizardMissingMessages, getWizardStats, WizardStatusPanel } from '../components/FormWizard.jsx';
+import getErrorMessage from '../utils/errorMessage.js';
+import { toDateInputValue } from '../utils/dateFormat.js';
 
 const initialFormState = {
   id: '',
@@ -62,10 +65,21 @@ const initialFormState = {
   featureImage: '',
   secondaryImage: '',
   contentProblem: '',
+  contentProblemTitle: '',
+  contentProblemDescription: '',
+  contentProblemAdditional: '',
   contentPullQuote: '',
   contentFindings: '',
+  contentFindingsTitle: '',
+  contentFindingsDescription: '',
+  contentFindingsAdditional: '',
   contentSolution: '',
+  contentSolutionTitle: '',
+  contentSolutionDescription: '',
+  contentSolutionAdditional: '',
   contentResult: '',
+  contentResultTitle: '',
+  contentResultDescription: '',
   sidebarClient: '',
   sidebarIndustry: '',
   sidebarEngagementType: '',
@@ -87,6 +101,19 @@ const initialFormState = {
     robots: 'index,follow'
   }
 };
+
+const required = (path, message, extra = {}) => ({ path, message, ...extra });
+const lineCount = (value) => String(value || '').split('\n').map((line) => line.trim()).filter(Boolean).length;
+const seoFields = [
+  required('seo.metaTitle', 'Meta title is required'),
+  required('seo.metaDescription', 'Meta description is required'),
+  required('seo.metaKeywords', 'At least one keyword is required', { type: 'array', min: 1 }),
+  required('seo.ogTitle', 'OG title is required'),
+  required('seo.ogDescription', 'OG description is required'),
+  required('seo.ogImage', 'OG image is required', { type: 'image' }),
+  required('seo.canonicalUrl', 'Canonical URL is required'),
+  required('seo.robots', 'Please select robots setting')
+];
 
 const CaseStudiesManager = () => {
   const navigate = useNavigate();
@@ -115,6 +142,61 @@ const CaseStudiesManager = () => {
   const selectedIndustry = industries.find((industry) => industry.slug === formData.industry);
   const selectedWhitePaper = whitePapers.find((paper) => paper.slug === formData.sidebarRelatedWhitePaperSlug);
   const otherCaseStudies = caseStudies.filter((study) => study._id !== editingId);
+  const wizardSteps = [
+    {
+      title: 'Basic Info',
+      fields: [
+        required('title', 'Title is required', { label: 'Title' }),
+        required('excerpt', 'Excerpt is required', { label: 'Excerpt' }),
+        required('industry', 'Please select an industry', { label: 'Industry' }),
+        required('slug', 'Slug is required', { label: 'Slug' }),
+        required('date', 'Please select a date', { label: 'Date' }),
+        required('imageUrl', 'Featured image is required', { type: 'image', label: 'Featured Image' }),
+        required('isVisible', 'Please select visibility status', { type: 'boolean', label: 'Visibility' }),
+        required('isFeatured', 'Please select featured status', { type: 'boolean', label: 'Featured Status' })
+      ]
+    },
+    {
+      title: 'Layout Details',
+      fields: [
+        required('heroDetailTitle', 'Hero title is required', { label: 'Hero Title' }),
+        required('heroDetailLead', 'Hero lead is required', { label: 'Hero Lead' }),
+        required('stats', 'At least one stat is required', { label: 'Stats', validate: (value) => lineCount(value) >= 1 ? '' : 'At least one stat is required' }),
+        required('featureImage', 'Feature image is required', { type: 'image', label: 'Feature Image' }),
+        required('secondaryImage', 'Secondary image is required', { type: 'image', label: 'Secondary Image' })
+      ]
+    },
+    {
+      title: 'Detailed Content',
+      fields: [
+        required('contentProblemTitle', 'Problem title is required'),
+        required('contentProblemDescription', 'Problem description is required'),
+        required('contentProblemAdditional', 'Problem additional info is required'),
+        required('contentPullQuote', 'Pull quote is required'),
+        required('contentFindingsTitle', 'Findings title is required'),
+        required('contentFindingsDescription', 'Findings description is required'),
+        required('contentFindingsAdditional', 'Findings additional info is required'),
+        required('contentSolutionTitle', 'Solution title is required'),
+        required('contentSolutionDescription', 'Solution description is required'),
+        required('contentSolutionAdditional', 'Solution additional info is required'),
+        required('contentResultTitle', 'Result title is required'),
+        required('contentResultDescription', 'Result description is required')
+      ]
+    },
+    {
+      title: 'Sidebar Config',
+      fields: [
+        required('sidebarClient', 'Client name is required'),
+        required('sidebarIndustry', 'Industry is required'),
+        required('sidebarEngagementType', 'Engagement type is required'),
+        required('sidebarDuration', 'Duration is required'),
+        required('sidebarScope', 'Scope is required'),
+        required('sidebarRelatedWhitePaperSlug', 'Please select a related white paper')
+      ]
+    },
+    { title: 'SEO', fields: seoFields }
+  ];
+  const wizardStats = getWizardStats(wizardSteps, formData);
 
   const handleOpenCreate = () => {
     setFormData(initialFormState);
@@ -128,12 +210,19 @@ const CaseStudiesManager = () => {
     
     // Format stats array of value/label back to lines
     const statsText = cs.stats ? cs.stats.map(s => `${s.value}:${s.label}`).join('\n') : '';
+    const sectionValue = (value, fallbackTitle) => typeof value === 'string'
+      ? { title: fallbackTitle, description: value, additional: '' }
+      : (value || { title: fallbackTitle, description: '', additional: '' });
+    const problem = sectionValue(cs.content?.problem, 'The problem');
+    const findings = sectionValue(cs.content?.findings, 'What we found');
+    const solution = sectionValue(cs.content?.solution, 'What we built');
+    const result = sectionValue(cs.content?.result, 'The result');
 
     setFormData({
       id: cs.id || '',
       slug: cs.slug || '',
       title: cs.title || '',
-      date: cs.date || '',
+      date: toDateInputValue(cs.date),
       industry: cs.industry || '',
       industryTag: cs.industryTag || '',
       excerpt: cs.excerpt || '',
@@ -144,17 +233,28 @@ const CaseStudiesManager = () => {
       breadcrumbParent: cs.breadcrumb?.parent || 'Case Studies',
       breadcrumbCurrent: cs.breadcrumb?.current || '',
       heroDetailIndustry: cs.heroDetail?.industry || '',
-      heroDetailDate: cs.heroDetail?.date || '',
+      heroDetailDate: toDateInputValue(cs.heroDetail?.date),
       heroDetailTitle: cs.heroDetail?.title || '',
       heroDetailLead: cs.heroDetail?.lead || '',
       stats: statsText,
       featureImage: cs.images?.featureImage || '',
       secondaryImage: cs.images?.secondaryImage || '',
       contentProblem: cs.content?.problem || '',
+      contentProblemTitle: problem.title || '',
+      contentProblemDescription: problem.description || '',
+      contentProblemAdditional: problem.additional || '',
       contentPullQuote: cs.content?.pullQuote || '',
       contentFindings: cs.content?.findings || '',
+      contentFindingsTitle: findings.title || '',
+      contentFindingsDescription: findings.description || '',
+      contentFindingsAdditional: findings.additional || '',
       contentSolution: cs.content?.solution || '',
+      contentSolutionTitle: solution.title || '',
+      contentSolutionDescription: solution.description || '',
+      contentSolutionAdditional: solution.additional || '',
       contentResult: cs.content?.result || '',
+      contentResultTitle: result.title || '',
+      contentResultDescription: result.description || '',
       sidebarClient: cs.sidebar?.client || '',
       sidebarIndustry: cs.sidebar?.industry || '',
       sidebarEngagementType: cs.sidebar?.engagementType || '',
@@ -173,7 +273,10 @@ const CaseStudiesManager = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.id.trim() || !formData.slug.trim() || !formData.industry) return;
+    if (!wizardStats.complete) {
+      alert(`Complete these fields before publishing:\n\n${getWizardMissingMessages(wizardSteps, formData).join('\n')}`);
+      return;
+    }
 
     // Parse stats
     const statsList = formData.stats
@@ -185,10 +288,10 @@ const CaseStudiesManager = () => {
 
     // Construct MERN-compliant Case Study JSON object matching schema 100%
     const payload = {
-      id: formData.id.trim(),
+      id: (formData.id || formData.slug).trim(),
       slug: formData.slug.trim(),
       title: formData.title.trim(),
-      date: formData.date.trim(),
+      date: toDateInputValue(formData.date),
       industry: formData.industry,
       industryTag: formData.industryTag.trim() || selectedIndustry?.hero?.title || selectedIndustry?.title || selectedIndustry?.name || '',
       excerpt: formData.excerpt.trim(),
@@ -204,7 +307,7 @@ const CaseStudiesManager = () => {
       },
       heroDetail: {
         industry: formData.heroDetailIndustry.trim() || formData.industryTag.trim(),
-        date: formData.heroDetailDate.trim() || formData.date.trim(),
+        date: toDateInputValue(formData.heroDetailDate) || toDateInputValue(formData.date),
         title: formData.heroDetailTitle.trim() || formData.title.trim(),
         lead: formData.heroDetailLead.trim() || formData.excerpt.trim()
       },
@@ -214,11 +317,26 @@ const CaseStudiesManager = () => {
         secondaryImage: formData.secondaryImage.trim()
       },
       content: {
-        problem: formData.contentProblem.trim(),
+        problem: {
+          title: formData.contentProblemTitle.trim(),
+          description: formData.contentProblemDescription.trim(),
+          additional: formData.contentProblemAdditional.trim()
+        },
         pullQuote: formData.contentPullQuote.trim(),
-        findings: formData.contentFindings.trim(),
-        solution: formData.contentSolution.trim(),
-        result: formData.contentResult.trim()
+        findings: {
+          title: formData.contentFindingsTitle.trim(),
+          description: formData.contentFindingsDescription.trim(),
+          additional: formData.contentFindingsAdditional.trim()
+        },
+        solution: {
+          title: formData.contentSolutionTitle.trim(),
+          description: formData.contentSolutionDescription.trim(),
+          additional: formData.contentSolutionAdditional.trim()
+        },
+        result: {
+          title: formData.contentResultTitle.trim(),
+          description: formData.contentResultDescription.trim()
+        }
       },
       sidebar: {
         client: formData.sidebarClient.trim(),
@@ -243,7 +361,7 @@ const CaseStudiesManager = () => {
       await saveCaseStudy(payload);
       setOpenForm(false);
     } catch (err) {
-      alert('Error saving case study');
+      alert(getErrorMessage(err, 'Error saving case study'));
     }
   };
 
@@ -257,7 +375,7 @@ const CaseStudiesManager = () => {
       await deleteCaseStudy(deleteId);
       setDeleteOpen(false);
     } catch (err) {
-      alert('Error deleting case study.');
+      alert(getErrorMessage(err, 'Error deleting case study.'));
     }
   };
 
@@ -265,7 +383,7 @@ const CaseStudiesManager = () => {
     try {
       await toggleCaseStudyVisibility(id);
     } catch (err) {
-      alert('Failed to toggle visibility.');
+      alert(getErrorMessage(err, 'Failed to toggle visibility.'));
     }
   };
 
@@ -371,12 +489,16 @@ const CaseStudiesManager = () => {
           {editingId ? 'Edit Case Study' : 'Create Case Study'}
         </DialogTitle>
 
+        <Box sx={{ px: 3, pb: 2 }}>
+          <WizardStatusPanel steps={wizardSteps} formData={formData} />
+        </Box>
         <Tabs value={activeTab} onChange={(e, val) => setActiveTab(val)} sx={{ px: 3, borderBottom: '1px solid #1e293b' }}>
-          <Tab label="1. Basic Info" />
-          <Tab label="2. Layout Details" />
-          <Tab label="3. Detailed Content" />
-          <Tab label="4. Sidebar Config" />
-          <Tab label="5. SEO" />
+          {wizardSteps.map((step, index) => (
+            <Tab
+              key={step.title}
+              label={`${index + 1}. ${step.title} ${wizardStats.stepStats[index].complete ? '✓' : `! ${wizardStats.stepStats[index].missing}`}`}
+            />
+          ))}
         </Tabs>
 
         <form onSubmit={handleSave}>
@@ -464,10 +586,11 @@ const CaseStudiesManager = () => {
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <TextField
-                    label="Engagement Date/Quarter"
-                    placeholder="e.g. Q1 2026 / March 2026"
+                    label="Engagement Date"
+                    type="date"
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    InputLabelProps={{ shrink: true }}
                     fullWidth
                   />
                 </Grid>
@@ -488,6 +611,13 @@ const CaseStudiesManager = () => {
                     value={formData.excerpt}
                     onChange={(e) => setFormData({ ...formData, excerpt: e.target.value })}
                     fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <ImageUploader
+                    label="Featured Image"
+                    value={formData.imageUrl}
+                    onChange={(url) => setFormData({ ...formData, imageUrl: url })}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -520,6 +650,36 @@ const CaseStudiesManager = () => {
             {/* TAB 2: LAYOUT DETAILS (Images & Breadcrumbs) */}
             {activeTab === 1 && (
               <Grid container spacing={3} sx={{ mt: 0.5 }}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Hero Title"
+                    value={formData.heroDetailTitle}
+                    onChange={(e) => setFormData({ ...formData, heroDetailTitle: e.target.value })}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Stats list (value:label format, one per line)"
+                    multiline
+                    rows={3}
+                    placeholder="22%:Sales Increase&#10;92%:Latency Reduction"
+                    value={formData.stats}
+                    onChange={(e) => setFormData({ ...formData, stats: e.target.value })}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    label="Hero Lead"
+                    multiline
+                    rows={3}
+                    placeholder="An enterprise analytics system resolving database bottlenecks..."
+                    value={formData.heroDetailLead}
+                    onChange={(e) => setFormData({ ...formData, heroDetailLead: e.target.value })}
+                    fullWidth
+                  />
+                </Grid>
                 <Grid item xs={12} sm={6}>
                   <ImageUploader
                     label="Grid Cover Image"
@@ -604,46 +764,17 @@ const CaseStudiesManager = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12}>
-                  <TextField
-                    label="1. The Problem"
-                    multiline
-                    rows={3}
-                    value={formData.contentProblem}
-                    onChange={(e) => setFormData({ ...formData, contentProblem: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="2. Findings / Research"
-                    multiline
-                    rows={3}
-                    value={formData.contentFindings}
-                    onChange={(e) => setFormData({ ...formData, contentFindings: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="3. Solution / Execution"
-                    multiline
-                    rows={3}
-                    value={formData.contentSolution}
-                    onChange={(e) => setFormData({ ...formData, contentSolution: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="4. Deliverables & Results"
-                    multiline
-                    rows={3}
-                    value={formData.contentResult}
-                    onChange={(e) => setFormData({ ...formData, contentResult: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
+                <Grid item xs={12} sm={4}><TextField label="Problem Title" value={formData.contentProblemTitle} onChange={(e) => setFormData({ ...formData, contentProblemTitle: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12} sm={8}><TextField label="Problem Additional" value={formData.contentProblemAdditional} onChange={(e) => setFormData({ ...formData, contentProblemAdditional: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12}><TextField label="Problem Description" multiline rows={3} value={formData.contentProblemDescription} onChange={(e) => setFormData({ ...formData, contentProblemDescription: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="Findings Title" value={formData.contentFindingsTitle} onChange={(e) => setFormData({ ...formData, contentFindingsTitle: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12} sm={8}><TextField label="Findings Additional" value={formData.contentFindingsAdditional} onChange={(e) => setFormData({ ...formData, contentFindingsAdditional: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12}><TextField label="Findings Description" multiline rows={3} value={formData.contentFindingsDescription} onChange={(e) => setFormData({ ...formData, contentFindingsDescription: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="Solution Title" value={formData.contentSolutionTitle} onChange={(e) => setFormData({ ...formData, contentSolutionTitle: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12} sm={8}><TextField label="Solution Additional" value={formData.contentSolutionAdditional} onChange={(e) => setFormData({ ...formData, contentSolutionAdditional: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12}><TextField label="Solution Description" multiline rows={3} value={formData.contentSolutionDescription} onChange={(e) => setFormData({ ...formData, contentSolutionDescription: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="Result Title" value={formData.contentResultTitle} onChange={(e) => setFormData({ ...formData, contentResultTitle: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12} sm={8}><TextField label="Result Description" multiline rows={2} value={formData.contentResultDescription} onChange={(e) => setFormData({ ...formData, contentResultDescription: e.target.value })} fullWidth /></Grid>
                 <Grid item xs={12}>
                   <TextField
                     label="Pull Quote / Highlight Quote"
@@ -772,7 +903,13 @@ const CaseStudiesManager = () => {
             <Button onClick={() => setOpenForm(false)} sx={{ color: '#94a3b8' }}>
               Cancel
             </Button>
-            <Button type="submit" variant="contained" color="primary">
+            <Button onClick={() => setActiveTab(Math.max(0, activeTab - 1))} disabled={activeTab === 0}>
+              Previous
+            </Button>
+            <Button onClick={() => setActiveTab(Math.min(wizardSteps.length - 1, activeTab + 1))} disabled={activeTab === wizardSteps.length - 1}>
+              Next
+            </Button>
+            <Button type="submit" variant="contained" color="primary" disabled={!wizardStats.complete} title={wizardStats.complete ? 'All fields complete! Ready to publish' : `Complete all ${wizardStats.missing} missing fields across all steps to publish`}>
               {editingId ? 'Save Changes' : 'Create Case Study'}
             </Button>
           </DialogActions>

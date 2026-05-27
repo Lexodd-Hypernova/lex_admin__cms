@@ -39,6 +39,9 @@ import AddIcon from '@mui/icons-material/Add';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 import ImageUploader from '../components/ImageUploader.jsx';
 import SEOFields from '../components/SEOFields.jsx';
+import { getWizardMissingMessages, getWizardStats, WizardStatusPanel } from '../components/FormWizard.jsx';
+import getErrorMessage from '../utils/errorMessage.js';
+import { toDateInputValue } from '../utils/dateFormat.js';
 
 const initialFormState = {
   id: '',
@@ -62,7 +65,13 @@ const initialFormState = {
   abstract: '',
   pullQuote: '',
   contentProblem: '',
+  contentProblemTitle: '',
+  contentProblemDescription: '',
+  contentProblemAdditional: '',
   contentFramework: '',
+  contentFrameworkTitle: '',
+  contentFrameworkDescription: '',
+  contentFrameworkAdditional: '',
   sidebarAuthor: '',
   sidebarPages: '',
   sidebarPublished: '',
@@ -81,6 +90,19 @@ const initialFormState = {
     robots: 'index,follow'
   }
 };
+
+const required = (path, message, extra = {}) => ({ path, message, ...extra });
+const lineCount = (value) => String(value || '').split('\n').map((line) => line.trim()).filter(Boolean).length;
+const seoFields = [
+  required('seo.metaTitle', 'Meta title is required'),
+  required('seo.metaDescription', 'Meta description is required'),
+  required('seo.metaKeywords', 'At least one keyword is required', { type: 'array', min: 1 }),
+  required('seo.ogTitle', 'OG title is required'),
+  required('seo.ogDescription', 'OG description is required'),
+  required('seo.ogImage', 'OG image is required', { type: 'image' }),
+  required('seo.canonicalUrl', 'Canonical URL is required'),
+  required('seo.robots', 'Please select robots setting')
+];
 
 const WhitePapersManager = () => {
   const navigate = useNavigate();
@@ -106,6 +128,53 @@ const WhitePapersManager = () => {
 
   const selectedCaseStudy = caseStudies.find((study) => study.slug === formData.sidebarRelatedCaseStudySlug);
   const otherWhitePapers = whitePapers.filter((paper) => paper._id !== editingId);
+  const wizardSteps = [
+    {
+      title: 'Basic Info',
+      fields: [
+        required('title', 'Title is required'),
+        required('excerpt', 'Excerpt is required'),
+        required('topic', 'Topic is required'),
+        required('date', 'Please select a date'),
+        required('readTime', 'Read time is required'),
+        required('coverImage', 'Cover image is required', { type: 'image' }),
+        required('isVisible', 'Please select visibility status', { type: 'boolean' }),
+        required('slug', 'Slug is required')
+      ]
+    },
+    {
+      title: 'Layout & Download',
+      fields: [
+        required('heroDescription', 'Hero lead is required'),
+        required('downloadPdfUrl', 'PDF file is required', { type: 'image' }),
+        required('frameworkDiagram', 'Framework diagram is required', { type: 'image' }),
+        required('downloadTitle', 'Download title is required'),
+        required('downloadDescription', 'Download description is required')
+      ]
+    },
+    {
+      title: 'Content',
+      fields: [
+        required('abstract', 'Abstract is required'),
+        required('pullQuote', 'Pull quote is required'),
+        required('contentProblemTitle', 'Problem title is required'),
+        required('contentProblemDescription', 'Problem description is required'),
+        required('contentProblemAdditional', 'Problem additional info is required'),
+        required('contentFrameworkTitle', 'Framework title is required'),
+        required('contentFrameworkDescription', 'Framework description is required'),
+        required('contentFrameworkAdditional', 'Framework additional info is required')
+      ]
+    },
+    {
+      title: 'Sidebar Config',
+      fields: [
+        required('sidebarRelatedCaseStudySlug', 'Please select a related case study'),
+        required('sidebarAlsoInSeries', 'At least one series item is required', { type: 'array', min: 1 })
+      ]
+    },
+    { title: 'SEO', fields: seoFields }
+  ];
+  const wizardStats = getWizardStats(wizardSteps, formData);
 
   const handleOpenCreate = () => {
     setFormData(initialFormState);
@@ -116,11 +185,16 @@ const WhitePapersManager = () => {
 
   const handleOpenEdit = (wp) => {
     setEditingId(wp._id);
+    const sectionValue = (value, fallbackTitle) => typeof value === 'string'
+      ? { title: fallbackTitle, description: value, additional: '' }
+      : (value || { title: fallbackTitle, description: '', additional: '' });
+    const problem = sectionValue(wp.content?.problem, 'The core problem');
+    const framework = sectionValue(wp.content?.framework, 'Framework');
     setFormData({
       id: wp.id || '',
       slug: wp.slug || '',
       topic: wp.topic || '',
-      date: wp.date || '',
+      date: toDateInputValue(wp.date),
       readTime: wp.readTime || '',
       title: wp.title || '',
       excerpt: wp.excerpt || '',
@@ -138,10 +212,16 @@ const WhitePapersManager = () => {
       abstract: wp.abstract || '',
       pullQuote: wp.pullQuote || '',
       contentProblem: wp.content?.problem || '',
+      contentProblemTitle: problem.title || '',
+      contentProblemDescription: problem.description || '',
+      contentProblemAdditional: problem.additional || '',
       contentFramework: wp.content?.framework || '',
+      contentFrameworkTitle: framework.title || '',
+      contentFrameworkDescription: framework.description || '',
+      contentFrameworkAdditional: framework.additional || '',
       sidebarAuthor: wp.sidebar?.author || '',
       sidebarPages: wp.sidebar?.pages || '',
-      sidebarPublished: wp.sidebar?.published || '',
+      sidebarPublished: toDateInputValue(wp.sidebar?.published || wp.date),
       sidebarLicense: wp.sidebar?.license || '',
       sidebarRelatedCaseStudySlug: wp.sidebar?.relatedCaseStudySlug || '',
       sidebarAlsoInSeries: Array.isArray(wp.sidebar?.alsoInSeries) ? wp.sidebar.alsoInSeries : [],
@@ -154,13 +234,16 @@ const WhitePapersManager = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim() || !formData.id.trim() || !formData.slug.trim()) return;
+    if (!wizardStats.complete) {
+      alert(`Complete these fields before publishing:\n\n${getWizardMissingMessages(wizardSteps, formData).join('\n')}`);
+      return;
+    }
 
     const payload = {
-      id: formData.id.trim(),
+      id: (formData.id || formData.slug).trim(),
       slug: formData.slug.trim(),
       topic: formData.topic.trim(),
-      date: formData.date.trim(),
+      date: toDateInputValue(formData.date),
       readTime: formData.readTime.trim(),
       title: formData.title.trim(),
       excerpt: formData.excerpt.trim(),
@@ -186,13 +269,21 @@ const WhitePapersManager = () => {
       abstract: formData.abstract.trim(),
       pullQuote: formData.pullQuote.trim(),
       content: {
-        problem: formData.contentProblem.trim(),
-        framework: formData.contentFramework.trim()
+        problem: {
+          title: formData.contentProblemTitle.trim(),
+          description: formData.contentProblemDescription.trim(),
+          additional: formData.contentProblemAdditional.trim()
+        },
+        framework: {
+          title: formData.contentFrameworkTitle.trim(),
+          description: formData.contentFrameworkDescription.trim(),
+          additional: formData.contentFrameworkAdditional.trim()
+        }
       },
       sidebar: {
         author: formData.sidebarAuthor.trim(),
         pages: formData.sidebarPages.trim(),
-        published: formData.sidebarPublished.trim() || formData.date.trim(),
+        published: toDateInputValue(formData.sidebarPublished) || toDateInputValue(formData.date),
         license: formData.sidebarLicense.trim(),
         relatedCaseStudy: selectedCaseStudy?.title || '',
         relatedCaseStudySlug: formData.sidebarRelatedCaseStudySlug,
@@ -210,7 +301,7 @@ const WhitePapersManager = () => {
       await saveWhitePaper(payload);
       setOpenForm(false);
     } catch (err) {
-      alert('Error saving white paper');
+      alert(getErrorMessage(err, 'Error saving white paper'));
     }
   };
 
@@ -224,7 +315,7 @@ const WhitePapersManager = () => {
       await deleteWhitePaper(deleteId);
       setDeleteOpen(false);
     } catch (err) {
-      alert('Error deleting white paper.');
+      alert(getErrorMessage(err, 'Error deleting white paper.'));
     }
   };
 
@@ -232,7 +323,7 @@ const WhitePapersManager = () => {
     try {
       await toggleWhitePaperVisibility(id);
     } catch (err) {
-      alert('Failed to toggle visibility status.');
+      alert(getErrorMessage(err, 'Failed to toggle visibility status.'));
     }
   };
 
@@ -329,12 +420,16 @@ const WhitePapersManager = () => {
           {editingId ? 'Edit White Paper Details' : 'Publish White Paper'}
         </DialogTitle>
 
+        <Box sx={{ px: 3, pb: 2 }}>
+          <WizardStatusPanel steps={wizardSteps} formData={formData} />
+        </Box>
         <Tabs value={activeTab} onChange={(e, val) => setActiveTab(val)} sx={{ px: 3, borderBottom: '1px solid #1e293b' }}>
-          <Tab label="1. Basics" />
-          <Tab label="2. Layout Media" />
-          <Tab label="3. Abstract & Body" />
-          <Tab label="4. Download & Metadata" />
-          <Tab label="5. SEO" />
+          {wizardSteps.map((step, index) => (
+            <Tab
+              key={step.title}
+              label={`${index + 1}. ${step.title} ${wizardStats.stepStats[index].complete ? '✓' : `! ${wizardStats.stepStats[index].missing}`}`}
+            />
+          ))}
         </Tabs>
 
         <form onSubmit={handleSave}>
@@ -393,9 +488,10 @@ const WhitePapersManager = () => {
                 <Grid item xs={12} sm={4}>
                   <TextField
                     label="Publish Date"
-                    placeholder="e.g. Jan 2026 / October 2025"
+                    type="date"
                     value={formData.date}
                     onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    InputLabelProps={{ shrink: true }}
                     fullWidth
                   />
                 </Grid>
@@ -419,6 +515,13 @@ const WhitePapersManager = () => {
                   />
                 </Grid>
                 <Grid item xs={12}>
+                  <ImageUploader
+                    label="Cover Image"
+                    value={formData.coverImage}
+                    onChange={(url) => setFormData({ ...formData, coverImage: url })}
+                  />
+                </Grid>
+                <Grid item xs={12}>
                   <FormControlLabel
                     control={
                       <Switch
@@ -437,6 +540,16 @@ const WhitePapersManager = () => {
             {activeTab === 1 && (
               <Grid container spacing={3} sx={{ mt: 0.5 }}>
                 <Grid item xs={12}>
+                  <TextField
+                    label="Hero Lead"
+                    multiline
+                    rows={3}
+                    value={formData.heroDescription}
+                    onChange={(e) => setFormData({ ...formData, heroDescription: e.target.value })}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12}>
                   <ImageUploader
                     label="Cover Image"
                     value={formData.coverImage}
@@ -448,6 +561,33 @@ const WhitePapersManager = () => {
                     label="Framework Architecture Diagram"
                     value={formData.frameworkDiagram}
                     onChange={(url) => setFormData({ ...formData, frameworkDiagram: url })}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Download Title"
+                    placeholder="Download Technical Report"
+                    value={formData.downloadTitle}
+                    onChange={(e) => setFormData({ ...formData, downloadTitle: e.target.value })}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Download Description"
+                    value={formData.downloadDescription}
+                    onChange={(e) => setFormData({ ...formData, downloadDescription: e.target.value })}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <ImageUploader
+                    label="PDF File"
+                    accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    field="cv"
+                    maxSize={10 * 1024 * 1024}
+                    value={formData.downloadPdfUrl}
+                    onChange={(url) => setFormData({ ...formData, downloadPdfUrl: url })}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -508,26 +648,12 @@ const WhitePapersManager = () => {
                     fullWidth
                   />
                 </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="Core Problem Description"
-                    multiline
-                    rows={3}
-                    value={formData.contentProblem}
-                    onChange={(e) => setFormData({ ...formData, contentProblem: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="Proposed Solution / Framework"
-                    multiline
-                    rows={4}
-                    value={formData.contentFramework}
-                    onChange={(e) => setFormData({ ...formData, contentFramework: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
+                <Grid item xs={12} sm={4}><TextField label="Problem Title" value={formData.contentProblemTitle} onChange={(e) => setFormData({ ...formData, contentProblemTitle: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12} sm={8}><TextField label="Problem Additional" value={formData.contentProblemAdditional} onChange={(e) => setFormData({ ...formData, contentProblemAdditional: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12}><TextField label="Problem Description" multiline rows={3} value={formData.contentProblemDescription} onChange={(e) => setFormData({ ...formData, contentProblemDescription: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12} sm={4}><TextField label="Framework Title" value={formData.contentFrameworkTitle} onChange={(e) => setFormData({ ...formData, contentFrameworkTitle: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12} sm={8}><TextField label="Framework Additional" value={formData.contentFrameworkAdditional} onChange={(e) => setFormData({ ...formData, contentFrameworkAdditional: e.target.value })} fullWidth /></Grid>
+                <Grid item xs={12}><TextField label="Framework Description" multiline rows={4} value={formData.contentFrameworkDescription} onChange={(e) => setFormData({ ...formData, contentFrameworkDescription: e.target.value })} fullWidth /></Grid>
               </Grid>
             )}
 
@@ -592,9 +718,10 @@ const WhitePapersManager = () => {
                 <Grid item xs={12} sm={6}>
                   <TextField
                     label="Publish Date Info"
-                    placeholder="e.g. January 2026"
+                    type="date"
                     value={formData.sidebarPublished}
                     onChange={(e) => setFormData({ ...formData, sidebarPublished: e.target.value })}
+                    InputLabelProps={{ shrink: true }}
                     fullWidth
                   />
                 </Grid>
@@ -674,7 +801,13 @@ const WhitePapersManager = () => {
             <Button onClick={() => setOpenForm(false)} sx={{ color: '#94a3b8' }}>
               Cancel
             </Button>
-            <Button type="submit" variant="contained" color="primary">
+            <Button onClick={() => setActiveTab(Math.max(0, activeTab - 1))} disabled={activeTab === 0}>
+              Previous
+            </Button>
+            <Button onClick={() => setActiveTab(Math.min(wizardSteps.length - 1, activeTab + 1))} disabled={activeTab === wizardSteps.length - 1}>
+              Next
+            </Button>
+            <Button type="submit" variant="contained" color="primary" disabled={!wizardStats.complete} title={wizardStats.complete ? 'All fields complete! Ready to publish' : `Complete all ${wizardStats.missing} missing fields across all steps to publish`}>
               {editingId ? 'Save Changes' : 'Publish Report'}
             </Button>
           </DialogActions>

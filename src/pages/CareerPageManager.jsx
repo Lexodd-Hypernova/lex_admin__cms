@@ -5,137 +5,192 @@ import {
   Box,
   Card,
   CardContent,
-  TextField,
-  Button,
   Grid,
-  CircularProgress,
-  Divider,
-  Tabs,
-  Tab
+  CircularProgress
 } from '@mui/material';
-import SaveIcon from '@mui/icons-material/Save';
-import ImageUploader from '../components/ImageUploader.jsx';
-import SEOFields from '../components/SEOFields.jsx';
+import FormWizard from '../components/FormWizard.jsx';
+import { WizardImageUploader, WizardSEOFields, WizardTextField } from '../components/WizardFields.jsx';
+import getErrorMessage from '../utils/errorMessage.js';
+
+const defaultSeo = {
+  metaTitle: '',
+  metaDescription: '',
+  metaKeywords: [],
+  ogTitle: '',
+  ogDescription: '',
+  ogImage: {},
+  canonicalUrl: '',
+  robots: 'index,follow'
+};
+
+const defaultForm = {
+  hero: { eyebrow: '', title: '', lead: '', openRoles: '', activeLocations: '', teamSize: '', heroImage: '' },
+  values: { title: '', description: '', additional: '', cultureImage: '', itemsRaw: '' },
+  cta: { eyebrow: '', title: '', description: '', buttonText: '', workspaceImage: '' },
+  seo: defaultSeo
+};
+
+const lineCount = (value) => String(value || '').split('\n').map((line) => line.trim()).filter(Boolean).length;
+const required = (path, message, extra = {}) => ({ path, message, ...extra });
+const seoFields = [
+  required('seo.metaTitle', 'Meta title is required'),
+  required('seo.metaDescription', 'Meta description is required'),
+  required('seo.metaKeywords', 'At least one keyword is required', { type: 'array', min: 1 }),
+  required('seo.ogTitle', 'OG title is required'),
+  required('seo.ogDescription', 'OG description is required'),
+  required('seo.ogImage', 'OG image is required', { type: 'image' }),
+  required('seo.canonicalUrl', 'Canonical URL is required'),
+  required('seo.robots', 'Please select robots setting')
+];
 
 const CareerPageManager = () => {
   const { careerPage, fetchCareerPage, saveCareerPage, loading } = useCMS();
-  const [activeTab, setActiveTab] = useState(0);
-
-  // Sub-states for Form editing
-  const [hero, setHero] = useState({ eyebrow: '', title: '', lead: '', statsRaw: '', heroImage: '' });
-  const [values, setValues] = useState({ title: '', description: '', additional: '', cultureImage: '', itemsRaw: '' });
-  const [cta, setCta] = useState({ eyebrow: '', title: '', description: '', buttonText: '', workspaceImage: '' });
-  const [seo, setSeo] = useState({
-    metaTitle: '',
-    metaDescription: '',
-    metaKeywords: [],
-    ogTitle: '',
-    ogDescription: '',
-    ogImage: {},
-    canonicalUrl: '',
-    robots: 'index,follow'
-  });
+  const [formData, setFormData] = useState(defaultForm);
 
   useEffect(() => {
     fetchCareerPage();
   }, []);
 
-  // Update edit forms when data arrives
   useEffect(() => {
-    if (careerPage) {
-      // Stats raw string: value:label per line
-      const statsStr = careerPage.hero?.stats
-        ? careerPage.hero.stats.map(s => `${s.value}:${s.label}`).join('\n')
-        : '';
+    if (!careerPage) return;
+    const stats = careerPage.hero?.stats || [];
+    const valuesItems = careerPage.values?.items || [];
 
-      // Items raw string: title:description:icon per line
-      const itemsStr = careerPage.values?.items
-        ? careerPage.values.items.map(it => `${it.title}:${it.description}:${it.icon}`).join('\n')
-        : '';
-
-      setHero({
+    setFormData({
+      hero: {
         eyebrow: careerPage.hero?.eyebrow || '',
         title: careerPage.hero?.title || '',
         lead: careerPage.hero?.lead || '',
-        statsRaw: statsStr,
+        openRoles: stats[0]?.value || '',
+        activeLocations: stats[1]?.value || '',
+        teamSize: stats[2]?.value || '',
         heroImage: careerPage.hero?.heroImage || ''
-      });
-
-      setValues({
+      },
+      values: {
         title: careerPage.values?.title || '',
         description: careerPage.values?.description || '',
         additional: careerPage.values?.additional || '',
         cultureImage: careerPage.values?.cultureImage || '',
-        itemsRaw: itemsStr
-      });
-
-      setCta({
+        itemsRaw: valuesItems.map((item) => `${item.title}:${item.description}`).join('\n')
+      },
+      cta: {
         eyebrow: careerPage.cta?.eyebrow || '',
         title: careerPage.cta?.title || '',
         description: careerPage.cta?.description || '',
         buttonText: careerPage.cta?.buttonText || '',
         workspaceImage: careerPage.cta?.workspaceImage || ''
-      });
-
-      setSeo(careerPage.seo || seo);
-    }
+      },
+      seo: careerPage.seo || defaultSeo
+    });
   }, [careerPage]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Parse stats
-    const statsList = hero.statsRaw
-      ? hero.statsRaw.split('\n').map(line => {
-          const parts = line.split(':');
-          return { value: parts[0]?.trim() || '', label: parts[1]?.trim() || '' };
-        }).filter(s => !!s.value)
-      : [];
-
-    // Parse items
-    const itemsList = values.itemsRaw
-      ? values.itemsRaw.split('\n').map(line => {
-          const parts = line.split(':');
-          return {
-            title: parts[0]?.trim() || '',
-            description: parts[1]?.trim() || '',
-            icon: parts[2]?.trim() || 'Star'
-          };
-        }).filter(it => !!it.title)
-      : [];
+  const handleSubmit = async () => {
+    const items = formData.values.itemsRaw.split('\n').map((line) => {
+      const [title, description] = line.split(':');
+      return { title: title?.trim() || '', description: description?.trim() || '', icon: 'Star' };
+    }).filter((item) => item.title && item.description);
 
     const payload = {
       hero: {
-        eyebrow: hero.eyebrow,
-        title: hero.title,
-        lead: hero.lead,
-        stats: statsList,
-        heroImage: hero.heroImage
+        eyebrow: formData.hero.eyebrow,
+        title: formData.hero.title,
+        lead: formData.hero.lead,
+        stats: [
+          { value: formData.hero.openRoles, label: 'Open Roles' },
+          { value: formData.hero.activeLocations, label: 'Active Locations' },
+          { value: formData.hero.teamSize, label: 'Team Size' }
+        ],
+        heroImage: formData.hero.heroImage
       },
       values: {
-        title: values.title,
-        description: values.description,
-        additional: values.additional,
-        cultureImage: values.cultureImage,
-        items: itemsList
+        title: formData.values.title,
+        description: formData.values.description,
+        additional: formData.values.additional,
+        cultureImage: formData.values.cultureImage,
+        items
       },
-      cta: {
-        eyebrow: cta.eyebrow,
-        title: cta.title,
-        description: cta.description,
-        buttonText: cta.buttonText,
-        workspaceImage: cta.workspaceImage
-      },
-      seo
+      cta: formData.cta,
+      seo: formData.seo
     };
 
     try {
       await saveCareerPage(payload);
       alert('Career page details updated successfully!');
     } catch (err) {
-      alert('Failed to update Career Page.');
+      alert(getErrorMessage(err, 'Failed to update Career Page.'));
     }
   };
+
+  const steps = [
+    {
+      title: 'Hero Section',
+      fields: [
+        required('hero.eyebrow', 'Eyebrow is required'),
+        required('hero.title', 'Title is required'),
+        required('hero.lead', 'Lead is required'),
+        required('hero.openRoles', 'Open roles stat is required'),
+        required('hero.activeLocations', 'Active locations stat is required'),
+        required('hero.teamSize', 'Team size stat is required'),
+        required('hero.heroImage', 'Hero image is required', { type: 'image' })
+      ],
+      render: () => (
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6}><WizardTextField path="hero.eyebrow" label="Eyebrow" /></Grid>
+          <Grid item xs={12} sm={6}><WizardTextField path="hero.title" label="Title" /></Grid>
+          <Grid item xs={12}><WizardTextField path="hero.lead" label="Lead" multiline rows={3} /></Grid>
+          <Grid item xs={12} sm={4}><WizardTextField path="hero.openRoles" label="Stats.openRoles" /></Grid>
+          <Grid item xs={12} sm={4}><WizardTextField path="hero.activeLocations" label="Stats.activeLocations" /></Grid>
+          <Grid item xs={12} sm={4}><WizardTextField path="hero.teamSize" label="Stats.teamSize" /></Grid>
+          <Grid item xs={12}><WizardImageUploader path="hero.heroImage" label="Hero Image" /></Grid>
+        </Grid>
+      )
+    },
+    {
+      title: 'Values Section',
+      fields: [
+        required('values.title', 'Values title is required'),
+        required('values.description', 'Values description is required'),
+        required('values.additional', 'Values additional info is required'),
+        required('values.cultureImage', 'Culture image is required', { type: 'image' }),
+        required('values.itemsRaw', 'Exactly 3 values with title and description are required', {
+          validate: (value) => lineCount(value) === 3 ? '' : 'Exactly 3 values with title and description are required'
+        })
+      ],
+      render: () => (
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6}><WizardTextField path="values.title" label="Values Title" /></Grid>
+          <Grid item xs={12} sm={6}><WizardImageUploader path="values.cultureImage" label="Culture Image" /></Grid>
+          <Grid item xs={12}><WizardTextField path="values.description" label="Values Description" multiline rows={2} /></Grid>
+          <Grid item xs={12}><WizardTextField path="values.additional" label="Values Additional" multiline rows={2} /></Grid>
+          <Grid item xs={12}><WizardTextField path="values.itemsRaw" label="Values Items, exactly 3 lines (Title:Description)" multiline rows={6} /></Grid>
+        </Grid>
+      )
+    },
+    {
+      title: 'CTA Section',
+      fields: [
+        required('cta.eyebrow', 'CTA eyebrow is required'),
+        required('cta.title', 'CTA title is required'),
+        required('cta.description', 'CTA description is required'),
+        required('cta.buttonText', 'CTA button text is required'),
+        required('cta.workspaceImage', 'Workspace image is required', { type: 'image' })
+      ],
+      render: () => (
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6}><WizardTextField path="cta.eyebrow" label="CTA Eyebrow" /></Grid>
+          <Grid item xs={12} sm={6}><WizardTextField path="cta.title" label="CTA Title" /></Grid>
+          <Grid item xs={12}><WizardTextField path="cta.description" label="CTA Description" multiline rows={3} /></Grid>
+          <Grid item xs={12} sm={6}><WizardTextField path="cta.buttonText" label="CTA Button Text" /></Grid>
+          <Grid item xs={12} sm={6}><WizardImageUploader path="cta.workspaceImage" label="Workspace Image" /></Grid>
+        </Grid>
+      )
+    },
+    {
+      title: 'SEO',
+      fields: seoFields,
+      render: () => <WizardSEOFields />
+    }
+  ];
 
   if (loading.career || !careerPage) {
     return (
@@ -157,176 +212,15 @@ const CareerPageManager = () => {
       </Box>
 
       <Card>
-        <Tabs value={activeTab} onChange={(e, val) => setActiveTab(val)} sx={{ px: 3, borderBottom: '1px solid #1e293b' }}>
-          <Tab label="1. Hero Banner" />
-          <Tab label="2. Our Values & Culture" />
-          <Tab label="3. CTA Section" />
-          <Tab label="4. SEO" />
-        </Tabs>
-
-        <form onSubmit={handleSubmit}>
-          <CardContent sx={{ minHeight: 300, p: 4 }}>
-            
-            {/* HERO BANNER SECTION */}
-            {activeTab === 0 && (
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Hero Eyebrow text"
-                    value={hero.eyebrow}
-                    onChange={(e) => setHero({ ...hero, eyebrow: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Hero Title"
-                    value={hero.title}
-                    onChange={(e) => setHero({ ...hero, title: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="Hero Lead Paragraph"
-                    multiline
-                    rows={3}
-                    value={hero.lead}
-                    onChange={(e) => setHero({ ...hero, lead: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <ImageUploader
-                    label="Hero Background Image"
-                    value={hero.heroImage}
-                    onChange={(url) => setHero({ ...hero, heroImage: url })}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Hero Stats (Format: value:label, one per line)"
-                    multiline
-                    rows={3}
-                    placeholder="50+:Global Creators&#10;98%:Retention Rate"
-                    value={hero.statsRaw}
-                    onChange={(e) => setHero({ ...hero, statsRaw: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-              </Grid>
-            )}
-
-            {/* VALUES SECTION */}
-            {activeTab === 1 && (
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Values Panel Title"
-                    value={values.title}
-                    onChange={(e) => setValues({ ...values, title: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <ImageUploader
-                    label="Culture Image"
-                    value={values.cultureImage}
-                    onChange={(url) => setValues({ ...values, cultureImage: url })}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="Values Panel Description"
-                    multiline
-                    rows={2}
-                    value={values.description}
-                    onChange={(e) => setValues({ ...values, description: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="Culture Highlights (Additional description)"
-                    multiline
-                    rows={2}
-                    value={values.additional}
-                    onChange={(e) => setValues({ ...values, additional: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="Values Items (Format: title : description : icon, one per line)"
-                    multiline
-                    rows={6}
-                    placeholder="Autonomy First : We trust you to organize your own day : Autonomy&#10;Craftsmanship : Quality is our highest metric : Code"
-                    value={values.itemsRaw}
-                    onChange={(e) => setValues({ ...values, itemsRaw: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-              </Grid>
-            )}
-
-            {/* CTA SECTION */}
-            {activeTab === 2 && (
-              <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="CTA Eyebrow"
-                    value={cta.eyebrow}
-                    onChange={(e) => setCta({ ...cta, eyebrow: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="CTA Section Title"
-                    value={cta.title}
-                    onChange={(e) => setCta({ ...cta, title: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="CTA Description Paragraph"
-                    multiline
-                    rows={3}
-                    value={cta.description}
-                    onChange={(e) => setCta({ ...cta, description: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="CTA Button Text"
-                    value={cta.buttonText}
-                    onChange={(e) => setCta({ ...cta, buttonText: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <ImageUploader
-                    label="Workspace / Team Photo"
-                    value={cta.workspaceImage}
-                    onChange={(url) => setCta({ ...cta, workspaceImage: url })}
-                  />
-                </Grid>
-              </Grid>
-            )}
-
-            {activeTab === 3 && (
-              <SEOFields value={seo} onChange={setSeo} />
-            )}
-
-            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-              <Button type="submit" variant="contained" color="secondary" startIcon={<SaveIcon />} size="large">
-                Publish Career Page Changes
-              </Button>
-            </Box>
-          </CardContent>
-        </form>
+        <CardContent sx={{ p: 4 }}>
+          <FormWizard
+            steps={steps}
+            formData={formData}
+            setFormData={setFormData}
+            onSubmit={handleSubmit}
+            publishLabel="Publish Career Page"
+          />
+        </CardContent>
       </Card>
     </Box>
   );

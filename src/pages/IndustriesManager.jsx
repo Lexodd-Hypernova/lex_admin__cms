@@ -39,6 +39,8 @@ import AddIcon from '@mui/icons-material/Add';
 import ConfirmModal from '../components/ConfirmModal.jsx';
 import ImageUploader from '../components/ImageUploader.jsx';
 import SEOFields from '../components/SEOFields.jsx';
+import { getWizardMissingMessages, getWizardStats, WizardStatusPanel } from '../components/FormWizard.jsx';
+import getErrorMessage from '../utils/errorMessage.js';
 
 const initialFormState = {
   slug: '',
@@ -72,6 +74,17 @@ const initialFormState = {
   }
 };
 
+const required = (path, message, extra = {}) => ({ path, message, ...extra });
+const lineCount = (value) => String(value || '').split('\n').map((line) => line.trim()).filter(Boolean).length;
+const seoFields = [
+  required('seo.metaTitle', 'Meta title is required'),
+  required('seo.metaDescription', 'Meta description is required'),
+  required('seo.metaKeywords', 'At least one keyword is required', { type: 'array', min: 1 }),
+  required('seo.ogTitle', 'OG title is required'),
+  required('seo.ogDescription', 'OG description is required'),
+  required('seo.ogImage', 'OG image is required', { type: 'image' })
+];
+
 const IndustriesManager = () => {
   const navigate = useNavigate();
   const {
@@ -96,6 +109,46 @@ const IndustriesManager = () => {
     fetchCaseStudies();
     fetchWhitePapers();
   }, []);
+  const wizardSteps = [
+    {
+      title: 'Basic Info',
+      fields: [
+        required('slug', 'Name/slug is required'),
+        required('heroTitle', 'Title is required'),
+        required('heroLead', 'Lead is required'),
+        required('heroEyebrow', 'Eyebrow is required'),
+        required('heroImage', 'Hero image is required', { type: 'image' }),
+        required('isVisible', 'Please select visibility status', { type: 'boolean' }),
+        required('orderIndex', 'Order index is required')
+      ]
+    },
+    {
+      title: 'Focus Areas',
+      fields: [
+        required('focusTitle', 'Focus title is required'),
+        required('focusDescription', 'Focus description is required'),
+        required('focusPillars', 'Exactly 4 pillars are required', { validate: (value) => lineCount(value) === 4 ? '' : 'Exactly 4 pillars are required' })
+      ]
+    },
+    {
+      title: 'Associated Content',
+      fields: [
+        required('caseStudies', 'At least two linked case studies are required', { type: 'array', min: 2 }),
+        required('whitePapers', 'At least one linked white paper is required', { type: 'array', min: 1 })
+      ]
+    },
+    {
+      title: 'CTA & SEO',
+      fields: [
+        required('ctaTitle', 'CTA title is required'),
+        required('ctaDescription', 'CTA description is required'),
+        required('ctaButtonText', 'CTA button text is required'),
+        required('ctaSecondaryButtonText', 'CTA secondary button text is required'),
+        ...seoFields
+      ]
+    }
+  ];
+  const wizardStats = getWizardStats(wizardSteps, formData);
 
   const handleOpenCreate = () => {
     setFormData(initialFormState);
@@ -140,7 +193,10 @@ const IndustriesManager = () => {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (!formData.slug.trim() || !formData.heroTitle.trim()) return;
+    if (!wizardStats.complete) {
+      alert(`Complete these fields before publishing:\n\n${getWizardMissingMessages(wizardSteps, formData).join('\n')}`);
+      return;
+    }
 
     // Parse pillars: "Title : Description"
     const pillarsList = formData.focusPillars
@@ -215,7 +271,7 @@ const IndustriesManager = () => {
       await saveIndustry(payload);
       setOpenForm(false);
     } catch (err) {
-      alert('Error saving industry');
+      alert(getErrorMessage(err, 'Error saving industry'));
     }
   };
 
@@ -231,7 +287,7 @@ const IndustriesManager = () => {
       setDeleteOpen(false);
       alert('Industry and all associated cascade assets deleted successfully!');
     } catch (err) {
-      alert('Failed to delete industry.');
+      alert(getErrorMessage(err, 'Failed to delete industry.'));
     }
   };
 
@@ -239,7 +295,7 @@ const IndustriesManager = () => {
     try {
       await toggleIndustryVisibility(id);
     } catch (err) {
-      alert('Failed to toggle visibility.');
+      alert(getErrorMessage(err, 'Failed to toggle visibility.'));
     }
   };
 
@@ -344,12 +400,16 @@ const IndustriesManager = () => {
           {editingId ? 'Edit Sector Details' : 'Create Sector / Industry'}
         </DialogTitle>
 
+        <Box sx={{ px: 3, pb: 2 }}>
+          <WizardStatusPanel steps={wizardSteps} formData={formData} />
+        </Box>
         <Tabs value={activeTab} onChange={(e, val) => setActiveTab(val)} sx={{ px: 3, borderBottom: '1px solid #1e293b' }}>
-          <Tab label="1. Hero & Basics" />
-          <Tab label="2. Focus Pillars" />
-          <Tab label="3. Associations" />
-          <Tab label="4. CTA Panel" />
-          <Tab label="5. SEO" />
+          {wizardSteps.map((step, index) => (
+            <Tab
+              key={step.title}
+              label={`${index + 1}. ${step.title} ${wizardStats.stepStats[index].complete ? '✓' : `! ${wizardStats.stepStats[index].missing}`}`}
+            />
+          ))}
         </Tabs>
 
         <form onSubmit={handleSave}>
@@ -597,7 +657,7 @@ const IndustriesManager = () => {
               </Grid>
             )}
 
-            {activeTab === 4 && (
+            {activeTab === 3 && (
               <SEOFields
                 value={formData.seo}
                 onChange={(seo) => setFormData({ ...formData, seo })}
@@ -609,7 +669,13 @@ const IndustriesManager = () => {
             <Button onClick={() => setOpenForm(false)} sx={{ color: '#94a3b8' }}>
               Cancel
             </Button>
-            <Button type="submit" variant="contained" color="primary">
+            <Button onClick={() => setActiveTab(Math.max(0, activeTab - 1))} disabled={activeTab === 0}>
+              Previous
+            </Button>
+            <Button onClick={() => setActiveTab(Math.min(wizardSteps.length - 1, activeTab + 1))} disabled={activeTab === wizardSteps.length - 1}>
+              Next
+            </Button>
+            <Button type="submit" variant="contained" color="primary" disabled={!wizardStats.complete} title={wizardStats.complete ? 'All fields complete! Ready to publish' : `Complete all ${wizardStats.missing} missing fields across all steps to publish`}>
               {editingId ? 'Save Changes' : 'Create Sector'}
             </Button>
           </DialogActions>

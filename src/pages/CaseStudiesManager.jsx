@@ -31,23 +31,23 @@ import {
   MenuItem,
   InputLabel,
   FormControl,
-  Alert
+  Alert,
+  Pagination
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 import ConfirmModal from '../components/ConfirmModal.jsx';
+import FeedbackSnackbar from '../components/FeedbackSnackbar.jsx';
 import ImageUploader from '../components/ImageUploader.jsx';
 import SEOFields from '../components/SEOFields.jsx';
 import { getWizardMissingMessages, getWizardStats, WizardStatusPanel } from '../components/FormWizard.jsx';
 import getErrorMessage from '../utils/errorMessage.js';
-import { toDateInputValue } from '../utils/dateFormat.js';
 
 const initialFormState = {
   id: '',
   slug: '',
   title: '',
-  date: '',
   industry: '',
   industryTag: '',
   excerpt: '',
@@ -58,12 +58,13 @@ const initialFormState = {
   breadcrumbParent: 'Case Studies',
   breadcrumbCurrent: '',
   heroDetailIndustry: '',
-  heroDetailDate: '',
   heroDetailTitle: '',
   heroDetailLead: '',
   stats: '', // JSON-like string or list text e.g. "value:label"
   featureImage: '',
+  featureImageAlt: '',
   secondaryImage: '',
+  secondaryImageAlt: '',
   contentProblem: '',
   contentProblemTitle: '',
   contentProblemDescription: '',
@@ -81,10 +82,6 @@ const initialFormState = {
   contentResultTitle: '',
   contentResultDescription: '',
   sidebarClient: '',
-  sidebarIndustry: '',
-  sidebarEngagementType: '',
-  sidebarDuration: '',
-  sidebarScope: '',
   sidebarRelatedWhitePaper: '',
   sidebarRelatedWhitePaperSlug: '',
   related: [],
@@ -128,10 +125,14 @@ const CaseStudiesManager = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [editingId, setEditingId] = useState(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [page, setPage] = useState(1);
 
   // Delete modal state
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [feedback, setFeedback] = useState({ open: false, severity: 'success', message: '' });
+  const showFeedback = (severity, message) => setFeedback({ open: true, severity, message });
+  const closeFeedback = () => setFeedback((current) => ({ ...current, open: false }));
 
   useEffect(() => {
     fetchCaseStudies();
@@ -139,9 +140,18 @@ const CaseStudiesManager = () => {
     fetchIndustries();
   }, []);
 
+  useEffect(() => {
+    if (page > 1 && page > Math.ceil(caseStudies.length / 6)) {
+      setPage(1);
+    }
+  }, [caseStudies.length, page]);
+
   const selectedIndustry = industries.find((industry) => industry.slug === formData.industry);
   const selectedWhitePaper = whitePapers.find((paper) => paper.slug === formData.sidebarRelatedWhitePaperSlug);
   const otherCaseStudies = caseStudies.filter((study) => study._id !== editingId);
+  const pageSize = 6;
+  const pageCount = Math.ceil(caseStudies.length / pageSize);
+  const paginatedCaseStudies = caseStudies.slice((page - 1) * pageSize, page * pageSize);
   const wizardSteps = [
     {
       title: 'Basic Info',
@@ -150,8 +160,8 @@ const CaseStudiesManager = () => {
         required('excerpt', 'Excerpt is required', { label: 'Excerpt' }),
         required('industry', 'Please select an industry', { label: 'Industry' }),
         required('slug', 'Slug is required', { label: 'Slug' }),
-        required('date', 'Please select a date', { label: 'Date' }),
         required('imageUrl', 'Featured image is required', { type: 'image', label: 'Featured Image' }),
+        required('imageAlt', 'Listing card image alt text is required', { label: 'Listing Card Image Alt' }),
         required('isVisible', 'Please select visibility status', { type: 'boolean', label: 'Visibility' }),
         required('isFeatured', 'Please select featured status', { type: 'boolean', label: 'Featured Status' })
       ]
@@ -160,10 +170,12 @@ const CaseStudiesManager = () => {
       title: 'Layout Details',
       fields: [
         required('heroDetailTitle', 'Hero title is required', { label: 'Hero Title' }),
-        required('heroDetailLead', 'Hero lead is required', { label: 'Hero Lead' }),
+        required('heroDetailLead', 'Hero description is required', { label: 'Hero Description' }),
         required('stats', 'At least one stat is required', { label: 'Stats', validate: (value) => lineCount(value) >= 1 ? '' : 'At least one stat is required' }),
-        required('featureImage', 'Feature image is required', { type: 'image', label: 'Feature Image' }),
-        required('secondaryImage', 'Secondary image is required', { type: 'image', label: 'Secondary Image' })
+        required('featureImage', 'Detail hero image is required', { type: 'image', label: 'Detail Hero Image' }),
+        required('featureImageAlt', 'Detail hero image alt text is required', { label: 'Detail Hero Image Alt' }),
+        required('secondaryImage', 'Supporting image is required', { type: 'image', label: 'Supporting Image' }),
+        required('secondaryImageAlt', 'Supporting image alt text is required', { label: 'Supporting Image Alt' })
       ]
     },
     {
@@ -187,10 +199,6 @@ const CaseStudiesManager = () => {
       title: 'Sidebar Config',
       fields: [
         required('sidebarClient', 'Client name is required'),
-        required('sidebarIndustry', 'Industry is required'),
-        required('sidebarEngagementType', 'Engagement type is required'),
-        required('sidebarDuration', 'Duration is required'),
-        required('sidebarScope', 'Scope is required'),
         required('sidebarRelatedWhitePaperSlug', 'Please select a related white paper')
       ]
     },
@@ -222,7 +230,6 @@ const CaseStudiesManager = () => {
       id: cs.id || '',
       slug: cs.slug || '',
       title: cs.title || '',
-      date: toDateInputValue(cs.date),
       industry: cs.industry || '',
       industryTag: cs.industryTag || '',
       excerpt: cs.excerpt || '',
@@ -233,12 +240,13 @@ const CaseStudiesManager = () => {
       breadcrumbParent: cs.breadcrumb?.parent || 'Case Studies',
       breadcrumbCurrent: cs.breadcrumb?.current || '',
       heroDetailIndustry: cs.heroDetail?.industry || '',
-      heroDetailDate: toDateInputValue(cs.heroDetail?.date),
       heroDetailTitle: cs.heroDetail?.title || '',
       heroDetailLead: cs.heroDetail?.lead || '',
       stats: statsText,
-      featureImage: cs.images?.featureImage || '',
-      secondaryImage: cs.images?.secondaryImage || '',
+      featureImage: typeof cs.images?.featureImage === 'string' ? cs.images.featureImage : cs.images?.featureImage?.url || '',
+      featureImageAlt: typeof cs.images?.featureImage === 'object' ? cs.images.featureImage?.alt || '' : '',
+      secondaryImage: typeof cs.images?.secondaryImage === 'string' ? cs.images.secondaryImage : cs.images?.secondaryImage?.url || '',
+      secondaryImageAlt: typeof cs.images?.secondaryImage === 'object' ? cs.images.secondaryImage?.alt || '' : '',
       contentProblem: cs.content?.problem || '',
       contentProblemTitle: problem.title || '',
       contentProblemDescription: problem.description || '',
@@ -256,10 +264,6 @@ const CaseStudiesManager = () => {
       contentResultTitle: result.title || '',
       contentResultDescription: result.description || '',
       sidebarClient: cs.sidebar?.client || '',
-      sidebarIndustry: cs.sidebar?.industry || '',
-      sidebarEngagementType: cs.sidebar?.engagementType || '',
-      sidebarDuration: cs.sidebar?.duration || '',
-      sidebarScope: cs.sidebar?.scope || '',
       sidebarRelatedWhitePaper: cs.sidebar?.relatedWhitePaper || '',
       sidebarRelatedWhitePaperSlug: cs.sidebar?.relatedWhitePaperSlug || '',
       related: cs.related || [],
@@ -274,7 +278,7 @@ const CaseStudiesManager = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!wizardStats.complete) {
-      alert(`Complete these fields before publishing:\n\n${getWizardMissingMessages(wizardSteps, formData).join('\n')}`);
+      showFeedback('warning', `Complete these fields before publishing:\n\n${getWizardMissingMessages(wizardSteps, formData).join('\n')}`);
       return;
     }
 
@@ -291,7 +295,6 @@ const CaseStudiesManager = () => {
       id: (formData.id || formData.slug).trim(),
       slug: formData.slug.trim(),
       title: formData.title.trim(),
-      date: toDateInputValue(formData.date),
       industry: formData.industry,
       industryTag: formData.industryTag.trim() || selectedIndustry?.hero?.title || selectedIndustry?.title || selectedIndustry?.name || '',
       excerpt: formData.excerpt.trim(),
@@ -307,14 +310,21 @@ const CaseStudiesManager = () => {
       },
       heroDetail: {
         industry: formData.heroDetailIndustry.trim() || formData.industryTag.trim(),
-        date: toDateInputValue(formData.heroDetailDate) || toDateInputValue(formData.date),
         title: formData.heroDetailTitle.trim() || formData.title.trim(),
         lead: formData.heroDetailLead.trim() || formData.excerpt.trim()
       },
       stats: statsList,
       images: {
-        featureImage: formData.featureImage.trim(),
-        secondaryImage: formData.secondaryImage.trim()
+        featureImage: {
+          url: formData.featureImage.trim(),
+          alt: formData.featureImageAlt.trim(),
+          placeholder: ''
+        },
+        secondaryImage: {
+          url: formData.secondaryImage.trim(),
+          alt: formData.secondaryImageAlt.trim(),
+          placeholder: ''
+        }
       },
       content: {
         problem: {
@@ -340,10 +350,6 @@ const CaseStudiesManager = () => {
       },
       sidebar: {
         client: formData.sidebarClient.trim(),
-        industry: formData.sidebarIndustry.trim(),
-        engagementType: formData.sidebarEngagementType.trim(),
-        duration: formData.sidebarDuration.trim(),
-        scope: formData.sidebarScope.trim(),
         relatedWhitePaper: selectedWhitePaper?.title || formData.sidebarRelatedWhitePaper.trim(),
         relatedWhitePaperSlug: formData.sidebarRelatedWhitePaperSlug
       },
@@ -360,8 +366,9 @@ const CaseStudiesManager = () => {
     try {
       await saveCaseStudy(payload);
       setOpenForm(false);
+      showFeedback('success', editingId ? 'Case study updated successfully.' : 'Case study created successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Error saving case study'));
+      showFeedback('error', getErrorMessage(err, 'Error saving case study'));
     }
   };
 
@@ -374,16 +381,18 @@ const CaseStudiesManager = () => {
     try {
       await deleteCaseStudy(deleteId);
       setDeleteOpen(false);
+      showFeedback('success', 'Case study deleted successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Error deleting case study.'));
+      showFeedback('error', getErrorMessage(err, 'Error deleting case study.'));
     }
   };
 
   const handleToggleVisibility = async (id) => {
     try {
       await toggleCaseStudyVisibility(id);
+      showFeedback('success', 'Case study visibility updated successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Failed to toggle visibility.'));
+      showFeedback('error', getErrorMessage(err, 'Failed to toggle visibility.'));
     }
   };
 
@@ -419,14 +428,13 @@ const CaseStudiesManager = () => {
                 <TableCell>Title</TableCell>
                 <TableCell>Slug / ID</TableCell>
                 <TableCell>Industry Tag</TableCell>
-                <TableCell>Engagement Date</TableCell>
                 <TableCell align="center">Featured</TableCell>
                 <TableCell align="center">Visible</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {caseStudies.map((cs) => (
+              {paginatedCaseStudies.map((cs) => (
                 <TableRow key={cs._id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
                   <TableCell sx={{ fontWeight: 'bold' }}>{cs.title}</TableCell>
                   <TableCell>
@@ -435,7 +443,6 @@ const CaseStudiesManager = () => {
                     </Typography>
                   </TableCell>
                   <TableCell>{cs.industryTag}</TableCell>
-                  <TableCell>{cs.date}</TableCell>
                   <TableCell align="center">
                     <Chip
                       label={cs.isFeatured ? 'YES' : 'NO'}
@@ -465,7 +472,7 @@ const CaseStudiesManager = () => {
               ))}
               {caseStudies.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 6, color: '#475569' }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6, color: '#475569' }}>
                     No case studies found. Click 'Create Case Study' to write your first project story!
                   </TableCell>
                 </TableRow>
@@ -474,6 +481,16 @@ const CaseStudiesManager = () => {
           </Table>
         </TableContainer>
       </Card>
+      {pageCount > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+          <Pagination
+            count={pageCount}
+            page={page}
+            onChange={(event, value) => setPage(value)}
+            color="primary"
+          />
+        </Box>
+      )}
 
       {/* Forms Modal with custom Tabs */}
       <Dialog
@@ -549,7 +566,6 @@ const CaseStudiesManager = () => {
                           ...formData,
                           industry: e.target.value,
                           industryTag: formData.industryTag || industryName,
-                          sidebarIndustry: formData.sidebarIndustry || industryName,
                           heroDetailIndustry: formData.heroDetailIndustry || industryName
                         });
                       }}
@@ -584,17 +600,7 @@ const CaseStudiesManager = () => {
                     fullWidth
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Engagement Date"
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                    InputLabelProps={{ shrink: true }}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid item xs={12}>
                   <TextField
                     label="Filters Tags (Comma-separated)"
                     placeholder="React, Next.js, Node.js"
@@ -615,9 +621,17 @@ const CaseStudiesManager = () => {
                 </Grid>
                 <Grid item xs={12}>
                   <ImageUploader
-                    label="Featured Image"
+                    label="Listing Card Image"
                     value={formData.imageUrl}
                     onChange={(url) => setFormData({ ...formData, imageUrl: url })}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    label="Listing Card Image Alt Text"
+                    value={formData.imageAlt}
+                    onChange={(e) => setFormData({ ...formData, imageAlt: e.target.value })}
+                    fullWidth
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -671,27 +685,12 @@ const CaseStudiesManager = () => {
                 </Grid>
                 <Grid item xs={12}>
                   <TextField
-                    label="Hero Lead"
+                    label="Hero Description"
                     multiline
                     rows={3}
                     placeholder="An enterprise analytics system resolving database bottlenecks..."
                     value={formData.heroDetailLead}
                     onChange={(e) => setFormData({ ...formData, heroDetailLead: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <ImageUploader
-                    label="Grid Cover Image"
-                    value={formData.imageUrl}
-                    onChange={(url) => setFormData({ ...formData, imageUrl: url })}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Image Alt Tag"
-                    value={formData.imageAlt}
-                    onChange={(e) => setFormData({ ...formData, imageAlt: e.target.value })}
                     fullWidth
                   />
                 </Grid>
@@ -723,16 +722,32 @@ const CaseStudiesManager = () => {
 
                 <Grid item xs={12} sm={6}>
                   <ImageUploader
-                    label="Feature Image"
+                    label="Detail Hero Image"
                     value={formData.featureImage}
                     onChange={(url) => setFormData({ ...formData, featureImage: url })}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <ImageUploader
-                    label="Secondary Layout Image"
+                    label="Supporting Image"
                     value={formData.secondaryImage}
                     onChange={(url) => setFormData({ ...formData, secondaryImage: url })}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Detail Hero Image Alt Text"
+                    value={formData.featureImageAlt}
+                    onChange={(e) => setFormData({ ...formData, featureImageAlt: e.target.value })}
+                    fullWidth
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Supporting Image Alt Text"
+                    value={formData.secondaryImageAlt}
+                    onChange={(e) => setFormData({ ...formData, secondaryImageAlt: e.target.value })}
+                    fullWidth
                   />
                 </Grid>
               </Grid>
@@ -741,29 +756,6 @@ const CaseStudiesManager = () => {
             {/* TAB 3: DETAILED CONTENT */}
             {activeTab === 2 && (
               <Grid container spacing={3} sx={{ mt: 0.5 }}>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Stats list (value:label format, one per line)"
-                    multiline
-                    rows={3}
-                    placeholder="22%:Sales Increase&#10;92%:Latency Reduction"
-                    value={formData.stats}
-                    onChange={(e) => setFormData({ ...formData, stats: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Hero Detail Lead Sentence"
-                    multiline
-                    rows={3}
-                    placeholder="An enterprise analytics system resolving database bottlenecks..."
-                    value={formData.heroDetailLead}
-                    onChange={(e) => setFormData({ ...formData, heroDetailLead: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-
                 <Grid item xs={12} sm={4}><TextField label="Problem Title" value={formData.contentProblemTitle} onChange={(e) => setFormData({ ...formData, contentProblemTitle: e.target.value })} fullWidth /></Grid>
                 <Grid item xs={12} sm={8}><TextField label="Problem Additional" value={formData.contentProblemAdditional} onChange={(e) => setFormData({ ...formData, contentProblemAdditional: e.target.value })} fullWidth /></Grid>
                 <Grid item xs={12}><TextField label="Problem Description" multiline rows={3} value={formData.contentProblemDescription} onChange={(e) => setFormData({ ...formData, contentProblemDescription: e.target.value })} fullWidth /></Grid>
@@ -797,42 +789,6 @@ const CaseStudiesManager = () => {
                     placeholder="e.g. Fashion Retailer Corp"
                     value={formData.sidebarClient}
                     onChange={(e) => setFormData({ ...formData, sidebarClient: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Engagement Industry"
-                    placeholder="e.g. E-Commerce & Retail"
-                    value={formData.sidebarIndustry}
-                    onChange={(e) => setFormData({ ...formData, sidebarIndustry: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Engagement Type"
-                    placeholder="e.g. Product Engineering"
-                    value={formData.sidebarEngagementType}
-                    onChange={(e) => setFormData({ ...formData, sidebarEngagementType: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    label="Duration"
-                    placeholder="e.g. 6 Months"
-                    value={formData.sidebarDuration}
-                    onChange={(e) => setFormData({ ...formData, sidebarDuration: e.target.value })}
-                    fullWidth
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="Service Scope"
-                    placeholder="e.g. Architecture, Backend, Frontend"
-                    value={formData.sidebarScope}
-                    onChange={(e) => setFormData({ ...formData, sidebarScope: e.target.value })}
                     fullWidth
                   />
                 </Grid>
@@ -924,6 +880,7 @@ const CaseStudiesManager = () => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteOpen(false)}
       />
+      <FeedbackSnackbar feedback={feedback} onClose={closeFeedback} />
     </Box>
   );
 };

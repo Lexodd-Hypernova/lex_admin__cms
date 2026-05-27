@@ -9,8 +9,10 @@ import {
   Typography
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
+import FeedbackSnackbar from '../components/FeedbackSnackbar.jsx';
 import ImageUploader from '../components/ImageUploader.jsx';
 import api from '../utils/api.js';
+import getErrorMessage from '../utils/errorMessage.js';
 
 const asImageObject = (url) => ({ url, alt: '', placeholder: '' });
 const sanitizePagePayload = (pageData) => ({
@@ -23,6 +25,9 @@ const HowWeWorkManager = () => {
   const [page, setPage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState({ open: false, severity: 'success', message: '' });
+  const showFeedback = (severity, message) => setFeedback({ open: true, severity, message });
+  const closeFeedback = () => setFeedback((current) => ({ ...current, open: false }));
 
   useEffect(() => {
     fetchPage();
@@ -46,10 +51,10 @@ const HowWeWorkManager = () => {
     try {
       const res = await api.put('/api/cms/how-we-work/page', sanitizePagePayload(page));
       setPage(res.data);
-      alert('How We Work images updated successfully!');
+      showFeedback('success', 'How We Work images updated successfully.');
     } catch (err) {
       console.error('Error saving How We Work page:', err);
-      alert('Failed to update How We Work images.');
+      showFeedback('error', getErrorMessage(err, 'Failed to update How We Work images.'));
     } finally {
       setSaving(false);
     }
@@ -68,7 +73,7 @@ const HowWeWorkManager = () => {
       setPage(res.data);
     } catch (err) {
       console.error('Error auto-saving How We Work image:', err);
-      alert('Image uploaded, but failed to save it to the page. Please click Save Images.');
+      showFeedback('error', getErrorMessage(err, 'Image uploaded, but failed to save it to the page. Please click Save Images.'));
     } finally {
       setSaving(false);
     }
@@ -125,6 +130,7 @@ const HowWeWorkManager = () => {
           </Box>
         </CardContent>
       </Card>
+      <FeedbackSnackbar feedback={feedback} onClose={closeFeedback} />
     </Box>
   );
 };

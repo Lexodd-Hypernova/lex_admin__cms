@@ -27,6 +27,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 import ConfirmModal from '../components/ConfirmModal.jsx';
+import FeedbackSnackbar from '../components/FeedbackSnackbar.jsx';
 import getErrorMessage from '../utils/errorMessage.js';
 import { todayInputValue, toDateInputValue } from '../utils/dateFormat.js';
 
@@ -53,6 +54,9 @@ const JobsManager = () => {
   const [editingId, setEditingId] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [feedback, setFeedback] = useState({ open: false, severity: 'success', message: '' });
+  const showFeedback = (severity, message) => setFeedback({ open: true, severity, message });
+  const closeFeedback = () => setFeedback((current) => ({ ...current, open: false }));
 
   useEffect(() => {
     fetchJobs();
@@ -96,7 +100,7 @@ const JobsManager = () => {
       !formData.req.trim() && 'At least one requirement is required'
     ].filter(Boolean);
     if (missing.length) {
-      alert(`Complete these fields before publishing:\n\n${missing.join('\n')}`);
+      showFeedback('warning', `Complete these fields before publishing:\n\n${missing.join('\n')}`);
       return;
     }
 
@@ -116,8 +120,9 @@ const JobsManager = () => {
     try {
       await saveJob(formattedData);
       setOpenForm(false);
+      showFeedback('success', editingId ? 'Job posting updated successfully.' : 'Job posting published successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Error saving job details'));
+      showFeedback('error', getErrorMessage(err, 'Error saving job details'));
     }
   };
 
@@ -130,16 +135,18 @@ const JobsManager = () => {
     try {
       await deleteJob(deleteId);
       setDeleteOpen(false);
+      showFeedback('success', 'Job posting deleted successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Error deleting job posting.'));
+      showFeedback('error', getErrorMessage(err, 'Error deleting job posting.'));
     }
   };
 
   const handleToggleVisibility = async (id) => {
     try {
       await toggleJobVisibility(id);
+      showFeedback('success', 'Job visibility updated successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Failed to update job visibility status.'));
+      showFeedback('error', getErrorMessage(err, 'Failed to update job visibility status.'));
     }
   };
 
@@ -347,6 +354,7 @@ const JobsManager = () => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteOpen(false)}
       />
+      <FeedbackSnackbar feedback={feedback} onClose={closeFeedback} />
     </Box>
   );
 };

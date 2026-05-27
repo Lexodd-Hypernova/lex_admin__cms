@@ -37,6 +37,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddIcon from '@mui/icons-material/Add';
 import ConfirmModal from '../components/ConfirmModal.jsx';
+import FeedbackSnackbar from '../components/FeedbackSnackbar.jsx';
 import ImageUploader from '../components/ImageUploader.jsx';
 import SEOFields from '../components/SEOFields.jsx';
 import { getWizardMissingMessages, getWizardStats, WizardStatusPanel } from '../components/FormWizard.jsx';
@@ -50,6 +51,7 @@ const initialFormState = {
   heroTitle: '',
   heroLead: '',
   heroImage: '',
+  heroImageAlt: '',
   focusTitle: 'Focus Areas',
   focusDescription: '',
   focusPillars: '', // text-format: "Title : Description" per line
@@ -103,6 +105,9 @@ const IndustriesManager = () => {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [deleteSlug, setDeleteSlug] = useState('');
+  const [feedback, setFeedback] = useState({ open: false, severity: 'success', message: '' });
+  const showFeedback = (severity, message) => setFeedback({ open: true, severity, message });
+  const closeFeedback = () => setFeedback((current) => ({ ...current, open: false }));
 
   useEffect(() => {
     fetchIndustries();
@@ -118,6 +123,7 @@ const IndustriesManager = () => {
         required('heroLead', 'Lead is required'),
         required('heroEyebrow', 'Eyebrow is required'),
         required('heroImage', 'Hero image is required', { type: 'image' }),
+        required('heroImageAlt', 'Hero image alt text is required'),
         required('isVisible', 'Please select visibility status', { type: 'boolean' }),
         required('orderIndex', 'Order index is required')
       ]
@@ -172,7 +178,8 @@ const IndustriesManager = () => {
       heroEyebrow: ind.hero?.eyebrow || 'Our Sectors',
       heroTitle: ind.hero?.title || '',
       heroLead: ind.hero?.lead || '',
-      heroImage: ind.hero?.heroImage || '',
+      heroImage: typeof ind.hero?.heroImage === 'string' ? ind.hero.heroImage : ind.hero?.heroImage?.url || '',
+      heroImageAlt: typeof ind.hero?.heroImage === 'object' ? ind.hero?.heroImage?.alt || '' : '',
       focusTitle: ind.focus?.title || 'Focus Areas',
       focusDescription: ind.focus?.description || '',
       focusPillars: pillarsText,
@@ -194,7 +201,7 @@ const IndustriesManager = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!wizardStats.complete) {
-      alert(`Complete these fields before publishing:\n\n${getWizardMissingMessages(wizardSteps, formData).join('\n')}`);
+      showFeedback('warning', `Complete these fields before publishing:\n\n${getWizardMissingMessages(wizardSteps, formData).join('\n')}`);
       return;
     }
 
@@ -214,7 +221,6 @@ const IndustriesManager = () => {
         slug: study.slug,
         title: study.title,
         result: study.excerpt || '',
-        date: study.date || '',
         image: study.image?.url || '',
         industryTag: study.industryTag || formData.breadcrumbCurrent || '',
         isVisible: study.isVisible !== false
@@ -242,7 +248,11 @@ const IndustriesManager = () => {
         eyebrow: formData.heroEyebrow.trim(),
         title: formData.heroTitle.trim(),
         lead: formData.heroLead.trim(),
-        heroImage: formData.heroImage.trim()
+        heroImage: {
+          url: formData.heroImage.trim(),
+          alt: formData.heroImageAlt.trim(),
+          placeholder: ''
+        }
       },
       focus: {
         title: formData.focusTitle.trim(),
@@ -270,8 +280,9 @@ const IndustriesManager = () => {
     try {
       await saveIndustry(payload);
       setOpenForm(false);
+      showFeedback('success', editingId ? 'Industry updated successfully.' : 'Industry created successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Error saving industry'));
+      showFeedback('error', getErrorMessage(err, 'Error saving industry'));
     }
   };
 
@@ -285,17 +296,18 @@ const IndustriesManager = () => {
     try {
       await deleteIndustry(deleteId);
       setDeleteOpen(false);
-      alert('Industry and all associated cascade assets deleted successfully!');
+      showFeedback('success', 'Industry and all associated cascade assets deleted successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Failed to delete industry.'));
+      showFeedback('error', getErrorMessage(err, 'Failed to delete industry.'));
     }
   };
 
   const handleToggleVisibility = async (id) => {
     try {
       await toggleIndustryVisibility(id);
+      showFeedback('success', 'Industry visibility updated successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Failed to toggle visibility.'));
+      showFeedback('error', getErrorMessage(err, 'Failed to toggle visibility.'));
     }
   };
 
@@ -470,6 +482,14 @@ const IndustriesManager = () => {
                     label="Hero Top Banner Image"
                     value={formData.heroImage}
                     onChange={(url) => setFormData({ ...formData, heroImage: url })}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    label="Hero Top Banner Image Alt Text"
+                    value={formData.heroImageAlt}
+                    onChange={(e) => setFormData({ ...formData, heroImageAlt: e.target.value })}
+                    fullWidth
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -691,6 +711,7 @@ const IndustriesManager = () => {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteOpen(false)}
       />
+      <FeedbackSnackbar feedback={feedback} onClose={closeFeedback} />
     </Box>
   );
 };

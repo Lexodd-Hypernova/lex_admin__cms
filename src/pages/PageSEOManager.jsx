@@ -11,7 +11,9 @@ import {
 } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import api from '../utils/api.js';
+import FeedbackSnackbar from '../components/FeedbackSnackbar.jsx';
 import SEOFields from '../components/SEOFields.jsx';
+import getErrorMessage from '../utils/errorMessage.js';
 
 const pages = [
   { value: 'home', label: 'Home Page' },
@@ -37,6 +39,9 @@ const PageSEOManager = () => {
   const [seo, setSeo] = useState(emptySeo);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState({ open: false, severity: 'success', message: '' });
+  const showFeedback = (severity, message) => setFeedback({ open: true, severity, message });
+  const closeFeedback = () => setFeedback((current) => ({ ...current, open: false }));
 
   useEffect(() => {
     fetchSEO(page);
@@ -60,10 +65,10 @@ const PageSEOManager = () => {
     try {
       const res = await api.put(`/api/cms/pages/${page}/seo`, seo);
       setSeo(res.data || emptySeo);
-      alert('Page SEO updated successfully!');
+      showFeedback('success', 'Page SEO updated successfully.');
     } catch (err) {
       console.error('Error saving page SEO:', err);
-      alert('Failed to update page SEO.');
+      showFeedback('error', getErrorMessage(err, 'Failed to update page SEO.'));
     } finally {
       setSaving(false);
     }
@@ -116,6 +121,7 @@ const PageSEOManager = () => {
           </Box>
         </CardContent>
       </Card>
+      <FeedbackSnackbar feedback={feedback} onClose={closeFeedback} />
     </Box>
   );
 };

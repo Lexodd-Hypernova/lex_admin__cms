@@ -9,6 +9,7 @@ import {
   CircularProgress
 } from '@mui/material';
 import FormWizard from '../components/FormWizard.jsx';
+import FeedbackSnackbar from '../components/FeedbackSnackbar.jsx';
 import { WizardImageUploader, WizardSEOFields, WizardTextField } from '../components/WizardFields.jsx';
 import getErrorMessage from '../utils/errorMessage.js';
 
@@ -46,6 +47,9 @@ const seoFields = [
 const CareerPageManager = () => {
   const { careerPage, fetchCareerPage, saveCareerPage, loading } = useCMS();
   const [formData, setFormData] = useState(defaultForm);
+  const [feedback, setFeedback] = useState({ open: false, severity: 'success', message: '' });
+  const showFeedback = (severity, message) => setFeedback({ open: true, severity, message });
+  const closeFeedback = () => setFeedback((current) => ({ ...current, open: false }));
 
   useEffect(() => {
     fetchCareerPage();
@@ -115,9 +119,9 @@ const CareerPageManager = () => {
 
     try {
       await saveCareerPage(payload);
-      alert('Career page details updated successfully!');
+      showFeedback('success', 'Career page details updated successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Failed to update Career Page.'));
+      showFeedback('error', getErrorMessage(err, 'Failed to update Career Page.'));
     }
   };
 
@@ -222,6 +226,7 @@ const CareerPageManager = () => {
           />
         </CardContent>
       </Card>
+      <FeedbackSnackbar feedback={feedback} onClose={closeFeedback} />
     </Box>
   );
 };

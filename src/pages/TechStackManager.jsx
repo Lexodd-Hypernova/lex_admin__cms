@@ -11,13 +11,14 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import FormWizard from '../components/FormWizard.jsx';
-import { WizardImageUploader, WizardSEOFields, WizardTextField } from '../components/WizardFields.jsx';
+import FeedbackSnackbar from '../components/FeedbackSnackbar.jsx';
+import { WizardImageUploader, WizardSEOFields, WizardSwitch, WizardTextField } from '../components/WizardFields.jsx';
 import { getNestedValue } from '../components/FormWizard.jsx';
 import getErrorMessage from '../utils/errorMessage.js';
 
 const image = { url: '', alt: '', placeholder: '' };
 const defaultTechStack = {
-  isVisible: true,
+  isVisible: false,
   isActive: true,
   hero: { eyebrow: '', title: '', lead: '', heroImage: image, isVisible: true },
   introduction: { title: '', description: '', features: [], isVisible: true },
@@ -26,8 +27,10 @@ const defaultTechStack = {
   cta: { title: '', description: '', buttonText: '', secondaryButtonText: '', backgroundImage: image, isVisible: true },
   seo: { metaTitle: '', metaDescription: '', metaKeywords: [], ogTitle: '', ogDescription: '', ogImage: {}, canonicalUrl: '', robots: 'index,follow' }
 };
+const blankTechStack = () => JSON.parse(JSON.stringify(defaultTechStack));
 
 const slugify = (value) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+const normalizeImageValue = (value) => (typeof value === 'string' ? { url: value, alt: '', placeholder: '' } : (value || image));
 const required = (path, message, extra = {}) => ({ path, message, ...extra });
 const imageRequired = (path, message) => required(path, message, { type: 'image' });
 const countRequired = (path, count, label) => required(path, `${label} must contain exactly ${count} items`, {
@@ -47,14 +50,14 @@ const normalizeStack = (stack) => {
   return {
     ...defaultTechStack,
     ...source,
-    hero: { ...defaultTechStack.hero, ...(source.hero || {}), heroImage: source.hero?.heroImage || image },
+    hero: { ...defaultTechStack.hero, ...(source.hero || {}), heroImage: normalizeImageValue(source.hero?.heroImage) },
     introduction: { ...defaultTechStack.introduction, ...(source.introduction || {}) },
     categories: (source.categories || []).map((category, categoryIndex) => ({
       _id: category._id,
       id: category.id || slugify(category.name || `category-${categoryIndex + 1}`),
       name: category.name || '',
       description: category.description || '',
-      logo: category.logo || image,
+      logo: normalizeImageValue(category.logo),
       isVisible: category.isVisible !== false,
       orderIndex: category.orderIndex ?? categoryIndex,
       tools: (category.tools || []).map((tool, toolIndex) => ({
@@ -78,7 +81,7 @@ const normalizeStack = (stack) => {
         orderIndex: item.orderIndex ?? index
       }))
     },
-    cta: { ...defaultTechStack.cta, ...(source.cta || {}), backgroundImage: source.cta?.backgroundImage || image },
+    cta: { ...defaultTechStack.cta, ...(source.cta || {}), backgroundImage: normalizeImageValue(source.cta?.backgroundImage) },
     seo: source.seo || defaultTechStack.seo
   };
 };
@@ -92,6 +95,9 @@ const ensureListSize = (items, size, factory) => {
 const TechStackManager = () => {
   const { techStack, fetchTechStack, saveTechStack, loading } = useCMS();
   const [formData, setFormData] = useState(defaultTechStack);
+  const [feedback, setFeedback] = useState({ open: false, severity: 'success', message: '' });
+  const showFeedback = (severity, message) => setFeedback({ open: true, severity, message });
+  const closeFeedback = () => setFeedback((current) => ({ ...current, open: false }));
 
   useEffect(() => {
     fetchTechStack();
@@ -147,10 +153,15 @@ const TechStackManager = () => {
   const handleSubmit = async () => {
     try {
       await saveTechStack(formData);
-      alert('Tech Stack configuration updated successfully!');
+      showFeedback('success', 'Tech Stack configuration updated successfully.');
     } catch (err) {
-      alert(getErrorMessage(err, 'Failed to update Tech Stack settings.'));
+      showFeedback('error', getErrorMessage(err, 'Failed to update Tech Stack settings.'));
     }
+  };
+
+  const handleResetBlank = () => {
+    setFormData(blankTechStack());
+    showFeedback('info', 'Tech Stack form cleared. Publish to save the blank state.');
   };
 
   const featureFields = (formData.introduction.features || []).map((_, index) => required(`introduction.features.${index}`, `Feature ${index + 1} is required`));
@@ -158,6 +169,7 @@ const TechStackManager = () => {
     required(`categories.${categoryIndex}.name`, `Category ${categoryIndex + 1} name is required`),
     required(`categories.${categoryIndex}.description`, `Category ${categoryIndex + 1} description is required`),
     imageRequired(`categories.${categoryIndex}.logo`, `Category ${categoryIndex + 1} logo is required`),
+    required(`categories.${categoryIndex}.logo.alt`, `Category ${categoryIndex + 1} logo alt text is required`),
     ...((category.tools || []).flatMap((_, toolIndex) => [
       required(`categories.${categoryIndex}.tools.${toolIndex}.name`, `Tool ${toolIndex + 1} name is required`),
       required(`categories.${categoryIndex}.tools.${toolIndex}.description`, `Tool ${toolIndex + 1} description is required`),
@@ -177,6 +189,7 @@ const TechStackManager = () => {
         required('hero.title', 'Hero title is required'),
         required('hero.lead', 'Hero lead is required'),
         imageRequired('hero.heroImage', 'Hero image is required'),
+        required('hero.heroImage.alt', 'Hero image alt text is required'),
         required('introduction.title', 'Introduction title is required'),
         required('introduction.description', 'Introduction description is required'),
         countRequired('introduction.features', 4, 'Features'),
@@ -184,15 +197,17 @@ const TechStackManager = () => {
       ],
       render: () => (
         <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Button startIcon={<AddIcon />} onClick={addExactDefaults}>Prepare required empty fields</Button>
+          </Grid>
+          <Grid item xs={12}><WizardSwitch path="isVisible" label="Visible on Public Website" /></Grid>
           <Grid item xs={12} sm={4}><WizardTextField path="hero.eyebrow" label="Hero Eyebrow" /></Grid>
           <Grid item xs={12} sm={8}><WizardTextField path="hero.title" label="Hero Title" /></Grid>
           <Grid item xs={12}><WizardTextField path="hero.lead" label="Hero Lead" multiline rows={3} /></Grid>
           <Grid item xs={12}><WizardImageUploader path="hero.heroImage" label="Hero Image" /></Grid>
+          <Grid item xs={12}><WizardTextField path="hero.heroImage.alt" label="Hero Image Alt Text" /></Grid>
           <Grid item xs={12} sm={6}><WizardTextField path="introduction.title" label="Introduction Title" /></Grid>
           <Grid item xs={12} sm={6}><WizardTextField path="introduction.description" label="Introduction Description" /></Grid>
-          <Grid item xs={12}>
-            <Button startIcon={<AddIcon />} onClick={addExactDefaults}>Prepare exact dynamic fields</Button>
-          </Grid>
           {(formData.introduction.features || []).map((_, index) => (
             <Grid item xs={12} sm={6} key={index}><WizardTextField path={`introduction.features.${index}`} label={`Feature ${index + 1}`} /></Grid>
           ))}
@@ -210,9 +225,10 @@ const TechStackManager = () => {
               <Card variant="outlined" sx={{ p: 2, borderColor: '#1e293b' }}>
                 <Typography variant="h6" sx={{ mb: 2 }}>Category {categoryIndex + 1}</Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}><WizardTextField path={`categories.${categoryIndex}.name`} label="Category Name" onValueChange={(value) => setArrayItem('categories', categoryIndex, { id: category.id || slugify(value) })} /></Grid>
+                  <Grid item xs={12} sm={6}><WizardTextField path={`categories.${categoryIndex}.name`} label="Category Name" onValueChange={(value) => setArrayItem('categories', categoryIndex, { id: slugify(value) })} /></Grid>
                   <Grid item xs={12} sm={6}><WizardTextField path={`categories.${categoryIndex}.description`} label="Category Description" /></Grid>
                   <Grid item xs={12}><WizardImageUploader path={`categories.${categoryIndex}.logo`} label="Category Logo" /></Grid>
+                  <Grid item xs={12}><WizardTextField path={`categories.${categoryIndex}.logo.alt`} label="Category Logo Alt Text" /></Grid>
                   {(category.tools || []).map((_, toolIndex) => (
                     <Grid item xs={12} key={toolIndex}>
                       <Box sx={{ p: 2, border: '1px solid #1e293b', borderRadius: 1 }}>
@@ -262,6 +278,7 @@ const TechStackManager = () => {
         required('cta.buttonText', 'CTA button text is required'),
         required('cta.secondaryButtonText', 'CTA secondary button text is required'),
         imageRequired('cta.backgroundImage', 'CTA background image is required'),
+        required('cta.backgroundImage.alt', 'CTA background image alt text is required'),
         ...seoFields
       ],
       render: () => (
@@ -271,6 +288,7 @@ const TechStackManager = () => {
           <Grid item xs={12} sm={6}><WizardTextField path="cta.buttonText" label="CTA Button Text" /></Grid>
           <Grid item xs={12} sm={6}><WizardTextField path="cta.secondaryButtonText" label="CTA Secondary Button Text" /></Grid>
           <Grid item xs={12}><WizardImageUploader path="cta.backgroundImage" label="CTA Background Image" /></Grid>
+          <Grid item xs={12}><WizardTextField path="cta.backgroundImage.alt" label="CTA Background Image Alt Text" /></Grid>
           <Grid item xs={12}><WizardSEOFields includeCanonical={false} includeRobots={false} /></Grid>
         </Grid>
       )
@@ -294,6 +312,9 @@ const TechStackManager = () => {
         <Typography variant="body1" sx={{ color: '#64748b' }}>
           Manage page sections, category logos, tools, visibility, and ordering.
         </Typography>
+        <Button sx={{ mt: 2 }} variant="outlined" onClick={handleResetBlank}>
+          Clear Form
+        </Button>
       </Box>
 
       <Card>
@@ -307,6 +328,7 @@ const TechStackManager = () => {
           />
         </CardContent>
       </Card>
+      <FeedbackSnackbar feedback={feedback} onClose={closeFeedback} />
     </Box>
   );
 };
